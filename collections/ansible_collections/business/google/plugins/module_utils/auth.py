@@ -72,6 +72,21 @@ OAUTH_ARGSPEC = dict(
     refresh_token=dict(type="str", no_log=True),
 )
 
+#: Combined argument_spec for modules (e.g. gsheet_update) that accept either
+#: a service account (AUTH_ARGSPEC) or an OAuth2 installed-app client
+#: (OAUTH_ARGSPEC) for authentication.
+SHEETS_COMBINED_ARGSPEC = dict(AUTH_ARGSPEC, **OAUTH_ARGSPEC)
+
+#: Mutually exclusive groups for SHEETS_COMBINED_ARGSPEC: callers must use
+#: either service account credentials or OAuth2 credentials, never both.
+SHEETS_COMBINED_MUTUALLY_EXCLUSIVE = [
+    ["credentials_path", "credentials"],
+    ["credentials_path", "client_id"],
+    ["credentials_path", "refresh_token"],
+    ["credentials", "client_id"],
+    ["credentials", "refresh_token"],
+]
+
 
 def check_google_deps(module):
     """Fail the module with a clear message if the Google client libs are missing."""

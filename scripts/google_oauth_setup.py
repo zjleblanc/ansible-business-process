@@ -4,26 +4,32 @@
 # Copyright: (c) 2026, Zachary LeBlanc
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-"""One-time helper to obtain a Gmail OAuth2 refresh token.
+"""One-time helper to obtain a Google OAuth2 refresh token.
 
-The gmail_search module authenticates using an OAuth2 installed-app client
-(client_id/client_secret) plus a refresh_token. Google's OAuth2 flow
-requires a human to consent in a browser, so that step cannot happen inside
-an Ansible module -- it must be done once, out-of-band, using this script.
+The gmail_search and gsheet_update modules can both authenticate using an
+OAuth2 installed-app client (client_id/client_secret) plus a refresh_token.
+Google's OAuth2 flow requires a human to consent in a browser, so that step
+cannot happen inside an Ansible module -- it must be done once, out-of-band,
+using this script.
 
 Usage:
     pip install google-auth-oauthlib
     python3 scripts/google_oauth_setup.py /path/to/client_id.json
 
-    # or, with a non-default scope / local server port:
+    # or, with non-default scopes / local server port:
     python3 scripts/google_oauth_setup.py client_id.json \\
         --scopes https://www.googleapis.com/auth/gmail.readonly \\
+                 https://www.googleapis.com/auth/spreadsheets \\
         --port 8080
 
 This opens a browser for you to sign in and consent, then prints the
 client_id, client_secret, and refresh_token to store in your AAP custom
 credential type (or as GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET /
-GOOGLE_REFRESH_TOKEN environment variables / Ansible Vault values).
+GOOGLE_REFRESH_TOKEN environment variables / Ansible Vault values). By
+default this requests both the Gmail read-only scope and the Sheets
+read/write scope, so the resulting refresh_token works for both
+gmail_search and gsheet_update. Pass --scopes to narrow this down if you
+only need one.
 
 The client_id.json is the "installed app" OAuth client downloaded from the
 Google Cloud Console (APIs & Services > Credentials), NOT a service account
@@ -37,12 +43,15 @@ import argparse
 import json
 import sys
 
-DEFAULT_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+DEFAULT_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/spreadsheets",
+]
 
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
-        description="Obtain a Gmail OAuth2 refresh token via a one-time browser consent flow."
+        description="Obtain a Google OAuth2 refresh token via a one-time browser consent flow."
     )
     parser.add_argument(
         "client_secret_file",
@@ -52,7 +61,7 @@ def parse_args(argv):
         "--scopes",
         nargs="+",
         default=DEFAULT_SCOPES,
-        help=f"OAuth2 scopes to request (default: {DEFAULT_SCOPES[0]}).",
+        help=f"OAuth2 scopes to request (default: {DEFAULT_SCOPES}).",
     )
     parser.add_argument(
         "--port",

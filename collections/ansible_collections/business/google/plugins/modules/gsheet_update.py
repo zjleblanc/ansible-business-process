@@ -14,7 +14,10 @@ short_description: Update a Google Spreadsheet cell by row lookup
 version_added: "1.0.0"
 description:
     - Finds a row by matching O(lookup_value) in O(lookup_column), then writes O(update_value) to O(update_column) on that row.
-    - Requires the Google Sheets API and a service account JSON key with access to the spreadsheet.
+    - Requires the Google Sheets API and either a service account JSON key or OAuth2 installed-app credentials with
+      access to the spreadsheet.
+    - Authenticates using a Google service account (O(credentials_path) / O(credentials)) OR OAuth2 installed-app
+      credentials (O(client_id) / O(client_secret) / O(refresh_token)), whichever set of options is provided.
 author:
     - Zachary LeBlanc
 options:
@@ -22,13 +25,34 @@ options:
         description:
             - Path to the Google service account JSON key file.
             - When omitted, the module uses the C(GOOGLE_SA_CRED_PATH) environment variable.
-            - Mutually exclusive with O(credentials).
+            - Mutually exclusive with O(credentials), O(client_id), and O(refresh_token).
         type: path
     credentials:
         description:
             - Service account JSON key as a dictionary (e.g. from Ansible Vault).
-            - Mutually exclusive with O(credentials_path).
+            - Mutually exclusive with O(credentials_path), O(client_id), and O(refresh_token).
         type: dict
+        no_log: true
+    client_id:
+        description:
+            - OAuth2 client ID from the Google Cloud project's installed-app credentials.
+            - When omitted, the module uses the C(GOOGLE_CLIENT_ID) environment variable.
+            - Mutually exclusive with O(credentials_path) and O(credentials).
+            - Requires O(client_secret) and O(refresh_token) to also be set.
+        type: str
+    client_secret:
+        description:
+            - OAuth2 client secret paired with O(client_id).
+            - When omitted, the module uses the C(GOOGLE_CLIENT_SECRET) environment variable.
+        type: str
+        no_log: true
+    refresh_token:
+        description:
+            - OAuth2 refresh token obtained via a one-time consent flow (see C(scripts/google_oauth_setup.py)),
+              requested with the C(https://www.googleapis.com/auth/spreadsheets) scope.
+            - When omitted, the module uses the C(GOOGLE_REFRESH_TOKEN) environment variable.
+            - Mutually exclusive with O(credentials_path) and O(credentials).
+        type: str
         no_log: true
     gsheet_id:
         description:
@@ -81,6 +105,18 @@ EXAMPLES = r'''
     update_column: E
     update_value: "Closed"
   register: gsheet_result
+
+- name: Update using explicit OAuth2 credentials instead of a service account
+  business.google.gsheet_update:
+    client_id: "{{ google_client_id }}"
+    client_secret: "{{ google_client_secret }}"
+    refresh_token: "{{ google_refresh_token }}"
+    gsheet_id: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+    sheet: Customers
+    lookup_column: A
+    lookup_value: "{{ support_case_account_name }}"
+    update_column: C
+    update_value: "{{ all_cases | length }}"
 '''
 
 RETURN = r'''
@@ -106,14 +142,20 @@ spreadsheet_id:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.business.google.plugins.module_utils.auth import (
-    AUTH_ARGSPEC,
-    AUTH_MUTUALLY_EXCLUSIVE,
+    GOOGLE_CLIENT_ID_ENV,
+    GOOGLE_CLIENT_SECRET_ENV,
+    GOOGLE_REFRESH_TOKEN_ENV,
+    SHEETS_COMBINED_ARGSPEC,
+    SHEETS_COMBINED_MUTUALLY_EXCLUSIVE,
+    SHEETS_SCOPES,
     HttpError,
     build,
     check_google_deps,
     load_credentials,
+    load_oauth_credentials,
     resolve_credentials_path,
     resolve_gsheet_id,
+    resolve_oauth_param,
 )
 from ansible_collections.business.google.plugins.module_utils.gsheets import (
     cell_range,
@@ -174,14 +216,14 @@ def update_cell(service, spreadsheet_id, range_name, value):
 def main():
     module = AnsibleModule(
         argument_spec=dict(
-            AUTH_ARGSPEC,
+            SHEETS_COMBINED_ARGSPEC,
             sheet=dict(type="str", default="Sheet1"),
             lookup_column=dict(type="str", required=True),
             lookup_value=dict(type="raw", required=True),
             update_column=dict(type="str", required=True),
             update_value=dict(type="raw", required=True),
         ),
-        mutually_exclusive=AUTH_MUTUALLY_EXCLUSIVE,
+        mutually_exclusive=SHEETS_COMBINED_MUTUALLY_EXCLUSIVE,
         supports_check_mode=True,
     )
 
@@ -191,6 +233,11 @@ def main():
     credentials_path = module.params["credentials_path"]
     if not credentials_dict:
         credentials_path = resolve_credentials_path(credentials_path)
+
+    client_id = resolve_oauth_param(module.params["client_id"], GOOGLE_CLIENT_ID_ENV)
+    client_secret = resolve_oauth_param(module.params["client_secret"], GOOGLE_CLIENT_SECRET_ENV)
+    refresh_token = resolve_oauth_param(module.params["refresh_token"], GOOGLE_REFRESH_TOKEN_ENV)
+    use_oauth = bool(client_id and client_secret and refresh_token)
 
     gsheet_id = resolve_gsheet_id(module.params["gsheet_id"])
     sheet = module.params["sheet"]
@@ -205,11 +252,14 @@ def main():
             )
         )
 
-    if not credentials_dict and not credentials_path:
+    if not use_oauth and not credentials_dict and not credentials_path:
         module.fail_json(
             msg=(
-                "Google credentials required: set credentials_path, credentials, "
-                "or GOOGLE_SA_CRED_PATH environment variable"
+                "Google credentials required: set credentials_path, credentials, or the "
+                "GOOGLE_SA_CRED_PATH environment variable for a service account, or set "
+                "client_id, client_secret, and refresh_token (or the GOOGLE_CLIENT_ID, "
+                "GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN environment variables) "
+                "for OAuth2"
             )
         )
 
@@ -220,9 +270,16 @@ def main():
         module.fail_json(msg=str(exc))
 
     try:
-        creds = load_credentials(credentials_path, credentials_dict)
+        if use_oauth:
+            creds = load_oauth_credentials(
+                client_id, client_secret, refresh_token, scopes=SHEETS_SCOPES
+            )
+        else:
+            creds = load_credentials(credentials_path, credentials_dict)
     except (ValueError, OSError) as exc:
         module.fail_json(msg=str(exc))
+    except Exception as exc:
+        module.fail_json(msg=f"Failed to obtain OAuth2 access token: {exc}")
 
     try:
         service = build("sheets", "v4", credentials=creds)
