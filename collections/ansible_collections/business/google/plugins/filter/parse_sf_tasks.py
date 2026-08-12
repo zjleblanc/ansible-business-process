@@ -125,6 +125,7 @@ _value:
 '''
 
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from ansible.errors import AnsibleFilterError
 from ansible.module_utils.common.text.converters import to_text
@@ -218,9 +219,9 @@ def parse_sf_tasks(html_content):
 
     tbody = table.find("tbody") or table
 
-    accounts = []
-    current_account = None
-    current_opportunity = None
+    accounts = []  # type: List[Dict[str, Any]]
+    current_account = None  # type: Optional[Dict[str, Any]]
+    current_opportunity = None  # type: Optional[Dict[str, Any]]
 
     for row in tbody.find_all("tr", recursive=False):
         if "dataRow" not in row.get("class", []):
