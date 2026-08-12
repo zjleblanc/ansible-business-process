@@ -12,6 +12,7 @@ tags:
   - google
   - gsuite
   - sheets
+  - gmail
 repository: https://github.com/zjleblanc/ansible-support-analyzer
 issues: https://github.com/zjleblanc/ansible-support-analyzer/issues
 build_ignore: []

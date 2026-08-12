@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright: (c) 2024, Ansible Support Analyzer
+# Copyright: (c) 2026, Zachary LeBlanc
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import absolute_import, division, print_function
@@ -16,7 +16,7 @@ description:
     - Finds a row by matching O(lookup_value) in O(lookup_column), then writes O(update_value) to O(update_column) on that row.
     - Requires the Google Sheets API and a service account JSON key with access to the spreadsheet.
 author:
-    - Ansible Support Analyzer
+    - Zachary LeBlanc
 options:
     credentials_path:
         description:
