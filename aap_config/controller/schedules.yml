@@ -1,0 +1,9 @@
+---
+controller_schedules:
+  - name: BPA // Account Task Updater // Nightly
+    unified_job_template: BPA // Account Task Updater
+    rrule: >-
+      DTSTART;TZID=America/Chicago:20260812T234500
+      RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR
+    labels:
+      - Business

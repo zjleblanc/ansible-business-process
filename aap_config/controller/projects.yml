@@ -8,3 +8,5 @@ controller_projects:
     scm_type: git
     scm_url: https://github.com/zjleblanc/ansible-business-process.git
     default_environment: ee-default
+    labels:
+      - Business
