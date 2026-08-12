@@ -100,7 +100,13 @@ def _extract_body(payload):
         elif part_mime.startswith("multipart/") and plain_text is None:
             plain_text = _extract_body(part)
 
-    return plain_text if plain_text is not None else html_text
+    # Some senders (e.g. automated report emails) include a text/plain
+    # alternative that decodes to nothing but whitespace, purely to satisfy
+    # spam filters, while the real content lives in text/html. Treat a
+    # blank plain-text part as unusable rather than letting it win.
+    if plain_text is not None and plain_text.strip():
+        return plain_text
+    return html_text
 
 
 def parse_message(raw_msg, msg_format="metadata"):

@@ -1,0 +1,31 @@
+# Reads the latest email labeled "RHSC/Tasks Report" from Gmail.
+#
+# Authenticates via OAuth2, resolved by the gmail_search module from the
+# GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN environment
+# variables (e.g. injected by an AAP custom credential type) unless overridden
+# with client_id / client_secret / refresh_token extra vars.
+#
+# Run with:
+#   ansible-playbook playbooks/gmail_rhsc_tasks_report.yml
+---
+- name: Read latest RHSC/Tasks Report email
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Search Gmail for the latest RHSC/Tasks Report email
+      business.google.gmail_search:
+        labels:
+          - "RHSC/Tasks Report"
+        max_results: 1
+        message_format: full
+      register: rhsc_tasks_report_search
+      failed_when: rhsc_tasks_report_search.messages | default([]) | length == 0
+
+    - name: Show the latest RHSC/Tasks Report email
+      ansible.builtin.debug:
+        msg:
+          subject: "{{ rhsc_tasks_report_search.messages[0].subject }}"
+          from: "{{ rhsc_tasks_report_search.messages[0].from }}"
+          date: "{{ rhsc_tasks_report_search.messages[0].date }}"
+          body: "{{ rhsc_tasks_report_search.messages[0].body }}"

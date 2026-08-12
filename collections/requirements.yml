@@ -1,8 +1,2 @@
 ---
-# Example Collections Requirements
-# Usage:
-#  - name: <collection name>
-#    version: 1.0.0
-collections:
-  - name: ./ansible_collections/business/google
-    type: dir
+collections: []
