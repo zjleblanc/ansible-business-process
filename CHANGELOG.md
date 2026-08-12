@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-08-12 — Limit account activity summaries to the last 3 months
+
+### Added
+- `business.google.recent_tasks` filter plugin to keep only Salesforce tasks whose date falls within the last N months (default 3).
+
+### Changed
+- Account dashboard updates now summarize and write only tasks from the last 3 months; when none remain, columns F and G are set to `{}` and the AI call is skipped.
+- Annotated parser loop state in `parse_sf_tasks` so Pylint no longer flags `current_account` as unsubscriptable.
+
+---
+
 ## 2026-08-12 — Require gsheet and gmail vars for account dashboard playbook
 
 ### Changed
