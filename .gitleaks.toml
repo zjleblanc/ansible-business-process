@@ -1,0 +1,35 @@
+# Gitleaks configuration for ansible-business-process
+# Docs: https://github.com/gitleaks/gitleaks
+#
+# Extends the default ruleset. Add path/regex allowlists here for known-safe
+# fixtures or placeholders — do not disable rules globally.
+
+title = "ansible-business-process"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Repo-specific path allowlists"
+paths = [
+  '''\.gitleaks\.toml$''',
+  '''\.gitleaksignore$''',
+]
+
+[[allowlists]]
+description = "Documentation and template placeholders"
+regexes = [
+  '''(?i)REDACTED[_A-Z0-9]*''',
+  '''(?i)REPLACE[_-]WITH[_-][A-Z0-9_-]+''',
+  '''(?i)YOUR[_-](?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[_-]?HERE''',
+  '''(?i)changeme''',
+  '''(?i)example[_-]?(?:token|secret|password|key)''',
+]
+
+# Encrypted Ansible Vault blobs are high-entropy and can trigger generic rules.
+# Allow the vault header / ciphertext pattern only — never plaintext secrets.
+[[allowlists]]
+description = "Ansible Vault encrypted content"
+regexes = [
+  '''(?s)\$ANSIBLE_VAULT;[0-9.]+;AES256\n(?:[0-9a-f\n]+)''',
+]
