@@ -16,6 +16,7 @@ import json
 import re
 
 COLUMN_LETTER_RE = re.compile(r"^[A-Za-z]+$")
+CELL_REF_RE = re.compile(r"^([A-Za-z]+)([0-9]+)$")
 
 
 def normalize_column(column):
@@ -24,6 +25,16 @@ def normalize_column(column):
     if not COLUMN_LETTER_RE.match(column):
         raise ValueError(f"invalid column letter: {column}")
     return column.upper()
+
+
+def normalize_cell(cell):
+    """Validate and return an uppercase-column cell reference, e.g. 'e17' -> 'E17'."""
+    cell = str(cell).strip()
+    match = CELL_REF_RE.match(cell)
+    if not match:
+        raise ValueError(f"invalid cell reference: {cell}")
+    column, row = match.groups()
+    return f"{column.upper()}{row}"
 
 
 def quote_sheet(sheet):
@@ -40,6 +51,14 @@ def column_range(sheet, column):
 def cell_range(sheet, column, row):
     """Return A1 range for a single cell."""
     return f"{quote_sheet(sheet)}!{column}{row}"
+
+
+def sheet_range(sheet, a1_range):
+    """Return a full A1 range for a worksheet given a relative A1 range or cell.
+
+    e.g. sheet_range("Data", "A2:G14") -> "'Data'!A2:G14"
+    """
+    return f"{quote_sheet(sheet)}!{a1_range}"
 
 
 def coerce_cell_value(value):

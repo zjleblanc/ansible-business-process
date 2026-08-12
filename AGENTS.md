@@ -220,6 +220,67 @@ This pattern:
 
 ---
 
+## Playbook Design Standards
+
+### Naming
+
+- Playbook filenames MUST be prefixed with `pb_`.
+- Examples:
+  - `pb_create_role_name.yml`
+  - `pb_update_account_tasks.yml`
+  - `pb_gmail_tasks_report.yml`
+
+### Header comments
+
+- Playbooks MAY include a comment block immediately before the document `---`.
+- That comment MUST be limited to **run usage examples**.
+- Run examples MUST use `ansible-navigator` (not `ansible-playbook`).
+- Do NOT put narrative docs, credential explanations, or other prose in the playbook header.
+
+Example:
+
+```yaml
+# ansible-navigator run playbooks/pb_example.yml
+# ansible-navigator run playbooks/pb_example.yml -e 'example_var="value with spaces"'
+---
+- name: Example play
+  hosts: localhost
+  gather_facts: false
+```
+
+### Task comments
+
+- Playbooks and task files MUST NOT include inline task comments (`#` on or above individual tasks).
+- If an agent believes a comment is seriously necessary, it MUST ask for developer approval before adding it.
+
+### Playbook task files (`tasks/`)
+
+- Prefer keeping tasks inline in the playbook.
+- Extract a task file only when necessary (for example, a multi-task body reused via `include_tasks` / `import_tasks` inside a loop).
+- When a task file is required, place it under repo-root `tasks/` (not `playbooks/tasks/`) so YAML schema / ansible-lint treat it as a task list rather than a playbook.
+- Name it `<subject>_<action>.yml` where:
+  - `<subject>` matches the loop subject (typically the `loop_var` / loop label subject).
+  - `<action>` MUST be a **single verb** when possible (e.g. `update`, `summarize`, `create`, `delete`).
+- When creating a new task file, the agent MUST propose several one-word `<action>` options and ask the developer to select one before creating or renaming the file.
+- If a single verb cannot clearly describe the work, the agent MUST ask the developer and present options (prefer still offering one-word candidates first; multi-word only if the developer chooses that).
+  - Example: looping with `loop_var: account` → `tasks/account_update.yml` (after developer selects `update`).
+- Include it from playbooks with a path relative to the playbook file, e.g. `../tasks/account_update.yml`.
+- Task file header comments (before `---`) MUST be limited to **references** and MUST list all references.
+- Each reference MUST be only the file path and line number (no extra context).
+
+Example:
+
+```yaml
+# References:
+#   - playbooks/pb_update_account_tasks.yml:105
+---
+- name: Example per-item task
+  ansible.builtin.debug:
+    msg: "{{ account }}"
+```
+
+---
+
 ## Task Design
 
 ### Structure
@@ -250,6 +311,8 @@ Playbooks SHOULD use `ansible.builtin.import_role` or `ansible.builtin.include_r
 Example:
 
 ```yaml
+# ansible-navigator run playbooks/pb_create_role_name.yml
+---
 - name: Create ServiceNow incident
   hosts: localhost
   gather_facts: false
@@ -267,10 +330,10 @@ Guidelines:
 - Prefer action-specific playbooks for AAP Job Templates.
 - Keep playbooks thin; business logic should remain inside roles.
 - Do not duplicate role tasks in playbooks.
-- Use clear playbook names that describe the operation being exposed, such as:
-  - `create_role_name.yml`
-  - `update_role_name.yml`
-  - `service_role_name.yml`
+- Playbook filenames MUST use the `pb_` prefix (see Playbook Design Standards), for example:
+  - `pb_create_role_name.yml`
+  - `pb_update_role_name.yml`
+  - `pb_service_role_name.yml`
 
 Agents SHOULD suggest this pattern when creating roles intended to be executed by AAP.
 
@@ -416,11 +479,11 @@ CI is project-specific.
 The agent SHOULD suggest validation steps such as:
 
 ```bash
-ansible-playbook --syntax-check playbooks/example.yml
+ansible-navigator run playbooks/pb_example.yml --mode stdout -- --syntax-check
 ```
 
 ```bash
-ansible-playbook --check playbooks/example.yml
+ansible-navigator run playbooks/pb_example.yml --mode stdout -- --check
 ```
 
 When appropriate, the agent SHOULD also suggest:
@@ -475,6 +538,7 @@ Agents operating under this guide must:
 - Keep logic readable and maintainable.
 - Move complex transformations into Python filters.
 - Avoid command-based tasks unless justified.
+- Prefix playbooks with `pb_`, keep playbook headers limited to `ansible-navigator` run examples, avoid task comments, and extract playbook task files only when necessary.
 - Expose role functionality through thin playbooks when AAP Job Templates need executable entry points.
 - Engage the user when decisions are ambiguous.
 

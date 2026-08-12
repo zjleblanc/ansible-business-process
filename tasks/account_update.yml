@@ -1,0 +1,46 @@
+# References:
+#   - playbooks/pb_update_account_tasks.yml:105
+---
+
+- name: Request AI tasks summary for {{ account.account }}
+  register: r_ai_summary
+  no_log: "{{ ai_rca_secure_logging | default(true) | bool }}"
+  ansible.builtin.uri:
+    url: "{{ ai_rca_api_url }}"
+    method: POST
+    timeout: 60
+    validate_certs: "{{ ai_rca_validate_certs | default(true) | bool }}"
+    headers:
+      Authorization: "Bearer {{ ai_rca_api_key }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      model: "{{ ai_rca_model }}"
+      temperature: "{{ ai_rca_temperature | float }}"
+      messages:
+        - role: system
+          content: "{{ ai_rca_system_prompt }}"
+        - role: user
+          content: "{{ account.tasks | to_json }}"
+    status_code: [200]
+
+- name: Update gsheet row for account {{ account.account }}
+  business.google.gsheet_update:
+    gsheet_id: "{{ gsheet_id | default(omit) }}"
+    credentials_path: "{{ google_credentials_path | default(omit) }}"
+    credentials: "{{ google_credentials | default(omit) }}"
+    client_id: "{{ google_client_id | default(omit) }}"
+    client_secret: "{{ google_client_secret | default(omit) }}"
+    refresh_token: "{{ google_refresh_token | default(omit) }}"
+    sheet: "{{ gsheet_sheet }}"
+    lookup_column: A
+    lookup_value: "{{ account.lookup_value }}"
+    updates:
+      - column: D
+        value: "{{ account.total_opps }}"
+      - column: E
+        value: "{{ account.total_tasks }}"
+      - column: F
+        value: "{{ r_ai_summary.json.choices[0].message.content }}"
+      - column: G
+        value: "{{ account.tasks | to_json }}"

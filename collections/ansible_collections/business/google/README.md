@@ -4,13 +4,54 @@ Ansible collection for interacting with Google Workspace (gsuite) services.
 
 ## Modules
 
-- `gsheet_update` -- Update a Google Spreadsheet cell by row lookup (service account or OAuth2).
+- `gsheet_update` -- Update one or more Google Spreadsheet cells by row lookup or direct A1 reference (service
+  account or OAuth2). Supports writing several cells in a single `batchUpdate` API call via `updates`, so a
+  playbook can loop over records (e.g. accounts) without also looping over columns.
+- `gsheet_read` -- Read values (and optionally hyperlink URLs) from an A1-notation range (service account or
+  OAuth2).
 - `gmail_search` -- Search Gmail messages with basic filters (to/from/subject/labels) and retrieve their contents.
 
 ## Filters
 
 - `parse_sf_tasks` -- Parse a Salesforce "Activities" report email (HTML) into structured
   account/opportunity/task data with summary counts at every level.
+- `match_sf_accounts` -- Match `parse_sf_tasks` accounts to rows read via `gsheet_read` by the Salesforce record ID
+  embedded in each account's URL, ignoring report accounts with no matching row.
+
+### `gsheet_update` usage modes
+
+```yaml
+# Single cell, by row lookup (original behavior)
+- business.google.gsheet_update:
+    lookup_column: A
+    lookup_value: "{{ account_name }}"
+    update_column: C
+    update_value: "{{ case_count }}"
+
+# Multiple columns on one looked-up row, in a single API call
+- business.google.gsheet_update:
+    sheet: Data
+    lookup_column: A
+    lookup_value: "{{ account_name }}"
+    updates:
+      - column: D
+        value: "{{ total_opps }}"
+      - column: E
+        value: "{{ total_tasks }}"
+
+# Direct cell references, no row lookup (e.g. a totals row)
+- business.google.gsheet_update:
+    sheet: Data
+    updates:
+      - cell: D17
+        value: "{{ total_opps }}"
+      - cell: E17
+        value: "{{ total_tasks }}"
+```
+
+Within `updates`, each item sets exactly one of `column` (resolved against `lookup_column`/`lookup_value`) or `cell`
+(a direct A1 reference such as `E17`). `update_column`/`update_value` remain available for a single-cell update and
+are mutually exclusive with `updates`.
 
 ## Requirements
 
@@ -28,11 +69,11 @@ pip install google-api-python-client google-auth beautifulsoup4
 
 This collection supports two Google authentication models: a service account (no per-user consent required) and OAuth2
 installed-app credentials (authenticates as a specific human user). `gmail_search` requires OAuth2 because service
-accounts can't read a personal/Workspace Gmail mailbox without domain-wide delegation. `gsheet_update` accepts
-**either** model, so you can reuse a single OAuth2 client/refresh_token across both modules, or keep using a service
-account for Sheets if you don't need Gmail access at all.
+accounts can't read a personal/Workspace Gmail mailbox without domain-wide delegation. `gsheet_update` and
+`gsheet_read` accept **either** model, so you can reuse a single OAuth2 client/refresh_token across all three modules,
+or keep using a service account for Sheets if you don't need Gmail access at all.
 
-### `gsheet_update` -- service account or OAuth2 installed-app credentials
+### `gsheet_update` / `gsheet_read` -- service account or OAuth2 installed-app credentials
 
 Provide exactly one of the following credential sets (mixing the two is rejected as mutually exclusive):
 

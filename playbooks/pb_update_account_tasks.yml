@@ -1,0 +1,130 @@
+# ansible-navigator run playbooks/pb_update_account_tasks.yml
+# ansible-navigator run playbooks/pb_update_account_tasks.yml -e 'gmail_label="RHSC/Tasks Report"'
+# ansible-navigator run playbooks/pb_update_account_tasks.yml -e ai_rca_api_base=https://api.openai.com/v1 -e ai_rca_api_key=sk-...
+---
+- name: Update account tasks report in Google Sheets
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    gmail_label: "My Label"
+    gsheet_sheet: "Data"
+    gsheet_account_range: "A2:A500"
+    gsheet_total_opps_cell: "D17"
+    gsheet_total_tasks_cell: "E17"
+    ai_rca_temperature: 0.3
+    ai_rca_system_prompt: >-
+      You are a sales engagement analyst summarizing Salesforce activity history for an account team.
+      Given a JSON list of tasks (each with opportunity, subject, date, and comments), write a concise
+      plain-text summary (3-6 sentences, no markdown or HTML formatting) covering the main themes of
+      recent activity, notable customer signals, and any follow-ups that appear outstanding. Do not
+      simply repeat the raw task list back.
+
+  tasks:
+    - name: Assert AI credentials are provided
+      ansible.builtin.assert:
+        that:
+          - ai_rca_model is defined
+          - ai_rca_api_key is defined
+          - ai_rca_api_base is defined
+        fail_msg: >-
+          ai_rca_model, ai_rca_api_key, and ai_rca_api_base are required extra vars, normally injected by
+          the AI RCA AAP credential type.
+        quiet: true
+
+    - name: Search Gmail for the latest email with label | {{ gmail_label }}
+      business.google.gmail_search:
+        client_id: "{{ google_client_id | default(omit) }}"
+        client_secret: "{{ google_client_secret | default(omit) }}"
+        refresh_token: "{{ google_refresh_token | default(omit) }}"
+        labels:
+          - "{{ gmail_label }}"
+        max_results: 1
+        message_format: full
+      register: gmail_label_search
+      failed_when: gmail_label_search.messages | default([]) | length == 0
+
+    - name: Parse the Salesforce tasks report
+      ansible.builtin.set_fact:
+        sf_report: "{{ gmail_label_search.messages[0].body | business.google.parse_sf_tasks }}"
+
+    - name: Read the gsheet's current total tasks cell
+      business.google.gsheet_read:
+        gsheet_id: "{{ gsheet_id | default(omit) }}"
+        credentials_path: "{{ google_credentials_path | default(omit) }}"
+        credentials: "{{ google_credentials | default(omit) }}"
+        client_id: "{{ google_client_id | default(omit) }}"
+        client_secret: "{{ google_client_secret | default(omit) }}"
+        refresh_token: "{{ google_refresh_token | default(omit) }}"
+        sheet: "{{ gsheet_sheet }}"
+        range: "{{ gsheet_total_tasks_cell }}"
+      register: gsheet_current_totals
+
+    - name: Determine the gsheet's current total tasks count
+      ansible.builtin.set_fact:
+        gsheet_current_total_tasks: "{{ gsheet_current_totals['values'][0][0] | default(0) | int }}"
+
+    - name: Report has not changed since the last update
+      when: sf_report.total_tasks == gsheet_current_total_tasks
+      block:
+        - name: No update
+          ansible.builtin.debug:
+            msg: >-
+              No update -- the latest email report has {{ sf_report.total_tasks }} total task(s), which
+              matches the gsheet's current total. Skipping AI summarization and the gsheet update.
+
+        - name: End play (nothing changed)
+          ansible.builtin.meta: end_play
+
+    - name: Resolve AI chat completions endpoint
+      ansible.builtin.set_fact:
+        ai_rca_api_url: >-
+          {{ ai_rca_api_base if 'chat/completions' in ai_rca_api_base
+             else ai_rca_api_base ~ '/chat/completions' }}
+
+    - name: Read gsheet account names and hyperlinks
+      business.google.gsheet_read:
+        gsheet_id: "{{ gsheet_id | default(omit) }}"
+        credentials_path: "{{ google_credentials_path | default(omit) }}"
+        credentials: "{{ google_credentials | default(omit) }}"
+        client_id: "{{ google_client_id | default(omit) }}"
+        client_secret: "{{ google_client_secret | default(omit) }}"
+        refresh_token: "{{ google_refresh_token | default(omit) }}"
+        sheet: "{{ gsheet_sheet }}"
+        range: "{{ gsheet_account_range }}"
+        include_hyperlinks: true
+      register: gsheet_accounts
+
+    - name: Match report accounts to gsheet rows by Salesforce record ID
+      ansible.builtin.set_fact:
+        matched_accounts: >-
+          {{ sf_report.accounts
+             | business.google.match_sf_accounts(gsheet_accounts['values'], gsheet_accounts['hyperlinks']) }}
+
+    - name: Summarize and update each matched account
+      ansible.builtin.include_tasks: ../tasks/account_update.yml
+      loop: "{{ matched_accounts }}"
+      loop_control:
+        loop_var: account
+        label: "{{ account.account }}"
+
+    - name: Update total opps/tasks in the gsheet
+      business.google.gsheet_update:
+        gsheet_id: "{{ gsheet_id | default(omit) }}"
+        credentials_path: "{{ google_credentials_path | default(omit) }}"
+        credentials: "{{ google_credentials | default(omit) }}"
+        client_id: "{{ google_client_id | default(omit) }}"
+        client_secret: "{{ google_client_secret | default(omit) }}"
+        refresh_token: "{{ google_refresh_token | default(omit) }}"
+        sheet: "{{ gsheet_sheet }}"
+        updates:
+          - cell: "{{ gsheet_total_opps_cell }}"
+            value: "{{ sf_report.total_opps }}"
+          - cell: "{{ gsheet_total_tasks_cell }}"
+            value: "{{ sf_report.total_tasks }}"
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: >-
+          Updated {{ matched_accounts | length }} account(s) out of {{ sf_report.total_accounts }} in the
+          report ({{ sf_report.total_opps }} total opps, {{ sf_report.total_tasks }} total tasks).
