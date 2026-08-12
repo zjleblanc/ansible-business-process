@@ -3,4 +3,6 @@
 # Usage:
 #  - name: <collection name>
 #    version: 1.0.0
-collections: []
+collections:
+  - name: ./ansible_collections/business/google
+    type: dir

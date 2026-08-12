@@ -1,0 +1,17 @@
+---
+namespace: business
+name: google
+version: 1.0.0
+readme: README.md
+authors:
+  - Ansible Business Process
+description: Modules and plugins for interacting with Google Workspace (gsuite) services.
+license:
+  - GPL-3.0-or-later
+tags:
+  - google
+  - gsuite
+  - sheets
+repository: https://github.com/zjleblanc/ansible-support-analyzer
+issues: https://github.com/zjleblanc/ansible-support-analyzer/issues
+build_ignore: []

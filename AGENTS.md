@@ -36,6 +36,58 @@ This is the **baseline standard**. This guide builds on top of it.
 
 ---
 
+## Collection Design Standards
+
+### Structure
+
+- Local collections MUST live under:
+  - `collections/ansible_collections/<namespace>/<name>/`
+
+- Collections MUST include:
+  - `galaxy.yml`
+  - `meta/runtime.yml`
+
+- Collections SHOULD include a `README.md` documenting:
+  - Included modules and plugins.
+  - Required dependencies.
+  - Authentication/configuration expectations.
+
+Example structure:
+
+```text
+collections/ansible_collections/business/example/
+  galaxy.yml
+  meta/
+    runtime.yml
+  plugins/
+    modules/
+      example_action.yml
+    module_utils/
+      auth.py
+```
+
+---
+
+### Module Utils
+
+- Collections SHOULD extract shared logic into:
+  - `plugins/module_utils/`
+
+- Candidates for extraction include:
+  - Authentication and credential resolution.
+  - Common API request/response handling.
+  - Reusable data formatting or validation helpers.
+
+This pattern:
+
+- Prevents duplicated logic across modules in the same collection.
+- Keeps individual modules focused on their specific action.
+- Improves testability and maintainability.
+
+Agents SHOULD suggest additional `module_utils` extractions when adding new modules to a collection reveals further duplicated logic, and confirm with the user before proceeding.
+
+---
+
 ## Role Design Standards
 
 ### Variable Management

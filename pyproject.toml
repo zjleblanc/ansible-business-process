@@ -1,0 +1,11 @@
+[tool.pylint.master]
+init-hook = 'import sys; sys.path.insert(0, "collections")'
+
+[tool.pylint."messages control"]
+disable = [
+    "wrong-import-position",
+    "broad-exception-caught",
+    "missing-function-docstring",
+    "missing-module-docstring",
+    "invalid-name"
+]
