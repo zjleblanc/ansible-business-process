@@ -4,5 +4,3 @@
 collections:
   - name: ./collections/ansible_collections/business/google
     type: dir
-  - name: ./collections/ansible_collections/business/custom
-    type: dir
