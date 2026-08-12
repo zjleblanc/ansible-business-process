@@ -1,0 +1,37 @@
+# Reads the latest email with a given Gmail label.
+#
+# Authenticates via OAuth2, resolved by the gmail_search module from the
+# GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN environment
+# variables (e.g. injected by an AAP custom credential type) unless overridden
+# with client_id / client_secret / refresh_token extra vars.
+#
+# Override the label with -e gmail_label="My/Label" (or an AAP survey).
+#
+# Run with:
+#   ansible-playbook playbooks/gmail_rhsc_tasks_report.yml
+#   ansible-playbook playbooks/gmail_rhsc_tasks_report.yml -e gmail_label="My Label"
+---
+- name: Read latest email by Gmail label
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    gmail_label: "My Label"
+
+  tasks:
+    - name: Search Gmail for the latest email with label {{ gmail_label }}
+      business.google.gmail_search:
+        labels:
+          - "{{ gmail_label }}"
+        max_results: 1
+        message_format: full
+      register: gmail_label_search
+      failed_when: gmail_label_search.messages | default([]) | length == 0
+
+    - name: Show the latest email with label {{ gmail_label }}
+      ansible.builtin.debug:
+        msg:
+          subject: "{{ gmail_label_search.messages[0].subject }}"
+          from: "{{ gmail_label_search.messages[0].from }}"
+          date: "{{ gmail_label_search.messages[0].date }}"
+          body: "{{ gmail_label_search.messages[0].body }}"

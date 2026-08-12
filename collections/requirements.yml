@@ -1,2 +1,6 @@
 ---
-collections: []
+# Collections requirements for ansible-lint / ansible-galaxy.
+# Paths are relative to the repository root (where ansible-lint runs).
+collections:
+  - name: ./collections/ansible_collections/business/google
+    type: dir
