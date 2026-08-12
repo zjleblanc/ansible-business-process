@@ -64,7 +64,7 @@
         gsheet_current_total_tasks: "{{ gsheet_current_totals['values'][0][0] | default(0) | int }}"
 
     - name: Report has not changed since the last update
-      when: sf_report.total_tasks == gsheet_current_total_tasks
+      when: (sf_report.total_tasks | int) == (gsheet_current_total_tasks | int)
       block:
         - name: No update
           ansible.builtin.debug:
