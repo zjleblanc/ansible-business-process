@@ -244,36 +244,37 @@ def parse_sf_tasks(html_content):
                     raise AnsibleFilterError(
                         "Encountered an opportunity grouping cell before any account grouping cell."
                     )
-                current_opportunity = {
-                    "opportunity": name,
-                    "opportunity_url": url,
-                    "tasks": [],
-                }
-                current_account["opportunities"].append(current_opportunity)
+                else:
+                    current_opportunity = {
+                        "opportunity": name,
+                        "opportunity_url": url,
+                        "tasks": [],
+                    }
+                    current_account["opportunities"].append(current_opportunity)
 
         if current_account is None or current_opportunity is None:
             raise AnsibleFilterError("Encountered a task row without an active account/opportunity context.")
+        else:
+            cells = row.find_all("td", recursive=False)
+            if len(cells) < 3:
+                continue
 
-        cells = row.find_all("td", recursive=False)
-        if len(cells) < 3:
-            continue
+            subject, subject_url = _extract_link(cells[0])
+            date = _clean_text(cells[1].get_text())
+            comments = _clean_text(cells[2].get_text())
 
-        subject, subject_url = _extract_link(cells[0])
-        date = _clean_text(cells[1].get_text())
-        comments = _clean_text(cells[2].get_text())
-
-        current_opportunity["tasks"].append(
-            {
-                "account": current_account["account"],
-                "account_url": current_account["account_url"],
-                "opportunity": current_opportunity["opportunity"],
-                "opportunity_url": current_opportunity["opportunity_url"],
-                "subject": subject,
-                "task_url": subject_url,
-                "date": date,
-                "comments": comments,
-            }
-        )
+            current_opportunity["tasks"].append(
+                {
+                    "account": current_account["account"],
+                    "account_url": current_account["account_url"],
+                    "opportunity": current_opportunity["opportunity"],
+                    "opportunity_url": current_opportunity["opportunity_url"],
+                    "subject": subject,
+                    "task_url": subject_url,
+                    "date": date,
+                    "comments": comments,
+                }
+            )
 
     return _sort_and_summarize(accounts)
 
