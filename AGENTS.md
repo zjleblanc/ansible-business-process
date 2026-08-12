@@ -272,7 +272,7 @@ Example:
 
 ```yaml
 # References:
-#   - playbooks/pb_update_account_tasks.yml:105
+#   - playbooks/pb_update_account_tasks.yml:107
 ---
 - name: Example per-item task
   ansible.builtin.debug:

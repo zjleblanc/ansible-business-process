@@ -1,17 +1,10 @@
-# ansible-navigator run playbooks/pb_update_account_tasks.yml
-# ansible-navigator run playbooks/pb_update_account_tasks.yml -e 'gmail_label="RHSC/Tasks Report"'
-# ansible-navigator run playbooks/pb_update_account_tasks.yml -e ai_rca_api_base=https://api.openai.com/v1 -e ai_rca_api_key=sk-...
+# ansible-navigator run playbooks/pb_update_account_tasks.yml -e @vault.yml -e @other.yml
 ---
-- name: Update account tasks report in Google Sheets
+- name: Process latest e-mail report and update account dashboard data source
   hosts: localhost
   gather_facts: false
 
   vars:
-    gmail_label: "My Label"
-    gsheet_sheet: "Data"
-    gsheet_account_range: "A2:A500"
-    gsheet_total_opps_cell: "D17"
-    gsheet_total_tasks_cell: "E17"
     ai_rca_temperature: 0.3
     ai_rca_system_prompt: >-
       You are a sales engagement analyst summarizing Salesforce activity history for an account team.
@@ -21,15 +14,21 @@
       simply repeat the raw task list back.
 
   tasks:
-    - name: Assert AI credentials are provided
+    - name: Assert required variables are provided
       ansible.builtin.assert:
         that:
-          - ai_rca_model is defined
-          - ai_rca_api_key is defined
-          - ai_rca_api_base is defined
+          - ai_rca_model is defined # gpt-4o
+          - ai_rca_api_key is defined # sk-...
+          - ai_rca_api_base is defined # https://api.openai.com/v1
+          - gmail_label is defined # My Label
+          - gsheet_id is defined # 1Bxi...
+          - gsheet_sheet is defined # Data
+          - gsheet_account_range is defined # A2:A500
+          - gsheet_total_opps_cell is defined # R2
+          - gsheet_total_tasks_cell is defined # D2
         fail_msg: >-
-          ai_rca_model, ai_rca_api_key, and ai_rca_api_base are required extra vars, normally injected by
-          the AI RCA AAP credential type.
+          Required extra vars missing: ai_rca_model, ai_rca_api_key, ai_rca_api_base,
+          gsheet_id, gsheet_sheet, gsheet_account_range, gsheet_total_opps_cell, gsheet_total_tasks_cell.
         quiet: true
 
     - name: Search Gmail for the latest email with label | {{ gmail_label }}

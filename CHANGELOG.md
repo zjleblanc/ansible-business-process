@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-12 — Require gsheet and gmail vars for account dashboard playbook
+
+### Changed
+- `pb_update_account_tasks.yml` now asserts required AI, Gmail, and Google Sheets variables up front (with inline example values) instead of defaulting sheet/range settings in the playbook `vars` section.
+- Updated `vault.yml` to supply the required playbook variables for local runs.
+- Ignored `*.log` files in `.gitignore`.
+
+---
+
 ## 2026-08-12 — Migrate parse_sf_tasks filter from business.custom to business.google
 
 ### Changed

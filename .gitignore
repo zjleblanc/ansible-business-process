@@ -25,6 +25,9 @@ playbooks/.artifacts/
 inventory.cache/
 *.inventory.cache
 
+# Logs
+*.log
+
 # Galaxy-downloaded roles installed into a local path
 # (e.g. `ansible-galaxy role install -r roles/requirements.yml -p roles/`)
 # roles/* would be too broad since custom roles live here too, so
