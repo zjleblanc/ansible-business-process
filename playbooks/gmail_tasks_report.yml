@@ -5,11 +5,17 @@
 # variables (e.g. injected by an AAP custom credential type) unless overridden
 # with client_id / client_secret / refresh_token extra vars.
 #
-# Override the label with -e gmail_label="My/Label" (or an AAP survey).
+# Override the label with -e (or an AAP survey). Spaces in -e values need the
+# quotes to reach Ansible's KV parser — wrap the whole assignment in single
+# quotes, or pass JSON:
+#   -e 'gmail_label="RHSC/Tasks Report"'
+#   -e '{"gmail_label": "RHSC/Tasks Report"}'
+# Do NOT use -e gmail_label="RHSC/Tasks Report" (shell strips the quotes and
+# Ansible truncates the value at the space).
 #
 # Run with:
-#   ansible-playbook playbooks/gmail_rhsc_tasks_report.yml
-#   ansible-playbook playbooks/gmail_rhsc_tasks_report.yml -e gmail_label="My Label"
+#   ansible-playbook playbooks/gmail_tasks_report.yml
+#   ansible-playbook playbooks/gmail_tasks_report.yml -e 'gmail_label="RHSC/Tasks Report"'
 ---
 - name: Read latest email by Gmail label
   hosts: localhost
@@ -19,7 +25,7 @@
     gmail_label: "My Label"
 
   tasks:
-    - name: Search Gmail for the latest email with label {{ gmail_label }}
+    - name: Search Gmail for the latest email with label | {{ gmail_label }}
       business.google.gmail_search:
         labels:
           - "{{ gmail_label }}"
@@ -28,10 +34,12 @@
       register: gmail_label_search
       failed_when: gmail_label_search.messages | default([]) | length == 0
 
-    - name: Show the latest email with label {{ gmail_label }}
-      ansible.builtin.debug:
-        msg:
-          subject: "{{ gmail_label_search.messages[0].subject }}"
-          from: "{{ gmail_label_search.messages[0].from }}"
-          date: "{{ gmail_label_search.messages[0].date }}"
-          body: "{{ gmail_label_search.messages[0].body }}"
+    - name: Show the latest email with label | {{ gmail_label }}
+      ansible.builtin.copy:
+        content: "{{ gmail_label_search.messages[0].body }}"
+        dest: "email_report_body.raw.txt"
+
+    - name: Show the parsed report data
+      ansible.builtin.copy:
+        content: "{{ gmail_label_search.messages[0].body | business.custom.parse_sf_tasks | to_nice_json(indent=2) }}"
+        dest: "report.parsed.json"

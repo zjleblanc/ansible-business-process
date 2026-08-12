@@ -88,6 +88,29 @@ Agents SHOULD suggest additional `module_utils` extractions when adding new modu
 
 ---
 
+### Python Dependencies & the Execution Environment
+
+Modules, `module_utils`, and filter/lookup plugins frequently depend on third-party Python packages (e.g. `google-api-python-client`, `beautifulsoup4`).
+
+- Agents MUST add any new third-party Python package required by a module, `module_utils`, or plugin to:
+  - `execution-environment/requirements/requirements.txt`
+- Agents SHOULD group entries with a comment noting which collection/plugin requires them, e.g.:
+
+  ```text
+  # Required by collections/ansible_collections/business/google (gmail_search, gsheet_update)
+  google-api-python-client
+  google-auth
+
+  # Required by collections/ansible_collections/business/custom (parse_sf_tasks filter)
+  beautifulsoup4
+  ```
+
+- Agents SHOULD keep the collection's own `README.md` "Requirements" section in sync with `requirements.txt`.
+- This keeps the built Execution Environment (see `execution-environment/execution-environment.yml`) able to run all collection content without manual `pip install` steps in AAP.
+- Dependencies used only by standalone developer tooling (e.g. a one-time OAuth setup script run locally, never executed by an AAP job) SHOULD NOT be added to `requirements.txt` -- document those separately instead (e.g. in the collection README or script docstring).
+
+---
+
 ## Role Design Standards
 
 ### Variable Management

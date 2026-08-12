@@ -29,6 +29,19 @@ def _quote_term(value):
     return value
 
 
+def _format_label(value):
+    """Format a label name for Gmail's label: search operator.
+
+    Gmail does not accept spaces in label: terms; spaces in the label name
+    must be replaced with dashes (e.g. "Tasks Report" -> Tasks-Report).
+    Nested labels keep their slash separators (e.g. RHSC/Tasks-Report).
+    """
+    value = str(value).strip()
+    if value.startswith('"') and value.endswith('"'):
+        value = value[1:-1]
+    return WHITESPACE_RE.sub("-", value)
+
+
 def build_query(from_addr=None, to=None, subject=None, labels=None,
                  after=None, before=None, query=None):
     """Assemble a Gmail search query string from convenience filters.
@@ -46,7 +59,7 @@ def build_query(from_addr=None, to=None, subject=None, labels=None,
     if subject:
         clauses.append(f"subject:{_quote_term(subject)}")
     for label in labels or []:
-        clauses.append(f"label:{_quote_term(label)}")
+        clauses.append(f"label:{_format_label(label)}")
     if after:
         clauses.append(f"after:{after}")
     if before:

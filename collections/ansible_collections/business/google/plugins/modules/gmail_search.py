@@ -53,6 +53,8 @@ options:
         description:
             - Filter messages having all of these Gmail labels (e.g. C(INBOX), C(UNREAD), or custom label names).
             - Maps to the Gmail C(label:) search operator, one clause per label.
+            - Spaces in label names are converted to dashes to match Gmail search syntax
+              (e.g. C(RHSC/Tasks Report) becomes C(label:RHSC/Tasks-Report)).
         type: list
         elements: str
     after:
