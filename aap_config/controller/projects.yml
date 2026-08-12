@@ -1,0 +1,10 @@
+---
+controller_projects:
+  - name: Business Process
+    description: >-
+      Ansible Business Process repository (this repo) -- playbooks for
+      automating account/task reporting workflows.
+    organization: Autodotes
+    scm_type: git
+    scm_url: https://github.com/zjleblanc/ansible-business-process.git
+    default_environment: ee-default

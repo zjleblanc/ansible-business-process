@@ -1,0 +1,15 @@
+---
+controller_templates:
+  - name: BPA // Account Task Updater
+    description: >-
+      Process the latest Salesforce activity e-mail report and update the
+      account dashboard gsheet.
+    job_type: run
+    organization: Autodotes
+    project: Business Process
+    playbook: playbooks/pb_update_account_tasks.yml
+    inventory: Autodotes Lab
+    credentials:
+      - Ansible Vault
+    labels:
+      - Business
