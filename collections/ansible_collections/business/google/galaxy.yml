@@ -13,6 +13,8 @@ tags:
   - gsuite
   - sheets
   - gmail
+  - filter
+  - salesforce
 repository: https://github.com/zjleblanc/ansible-support-analyzer
 issues: https://github.com/zjleblanc/ansible-support-analyzer/issues
 build_ignore: []

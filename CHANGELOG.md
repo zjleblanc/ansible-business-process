@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-12 — Migrate parse_sf_tasks filter from business.custom to business.google
+
+### Changed
+- Moved `parse_sf_tasks` filter plugin from `business.custom` to `business.google` — the FQCN is now `business.google.parse_sf_tasks`.
+- `parse_sf_tasks` now returns a dict (with an `accounts` key) instead of a plain list, adding `total_tasks`, `total_opps`, and `total_accounts` summary counts at the root, account, and opportunity levels.
+- Updated `gmail_tasks_report.yml` playbook to use the new FQCN.
+- Moved `beautifulsoup4` dependency under the `business.google` group in `requirements.txt`.
+
+### Removed
+- Removed the `business.custom` collection (its only content was `parse_sf_tasks`).
+
+---
+
 ## 2026-08-12 — Support OAuth2 credentials in gsheet_update alongside service accounts
 
 ### Added

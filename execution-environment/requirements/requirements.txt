@@ -2,9 +2,7 @@
 # Add an entry (with a comment noting the collection/plugin) whenever new
 # collection content introduces a third-party Python dependency.
 
-# Required by collections/ansible_collections/business/google (gmail_search, gsheet_update)
+# Required by collections/ansible_collections/business/google (gmail_search, gsheet_update, parse_sf_tasks)
 google-api-python-client
 google-auth
-
-# Required by collections/ansible_collections/business/custom (parse_sf_tasks filter)
 beautifulsoup4

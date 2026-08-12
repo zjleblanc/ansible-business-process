@@ -2,6 +2,8 @@
 # Ansible Development Artifacts
 # =============================================================================
 
+playbooks/.artifacts/
+
 # Retry files generated on playbook failures
 *.retry
 

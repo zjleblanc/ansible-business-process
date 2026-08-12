@@ -32,68 +32,96 @@ DOCUMENTATION = r'''
 EXAMPLES = r'''
 - name: Parse Salesforce tasks from a report email body
   ansible.builtin.set_fact:
-    sf_accounts: "{{ gmail_label_search.messages[0].body | business.custom.parse_sf_tasks }}"
+    sf_report: "{{ gmail_label_search.messages[0].body | business.google.parse_sf_tasks }}"
+
+- name: Access root-level summary counts
+  ansible.builtin.debug:
+    msg: "{{ sf_report.total_accounts }} accounts, {{ sf_report.total_opps }} opps, {{ sf_report.total_tasks }} tasks"
 
 - name: Flatten to a single list of tasks across all accounts/opportunities
   ansible.builtin.set_fact:
     sf_tasks: >-
-      {{ sf_accounts
+      {{ sf_report.accounts
          | map(attribute='opportunities') | flatten
          | map(attribute='tasks') | flatten }}
 '''
 
 RETURN = r'''
 _value:
-    description: List of accounts, each with their nested opportunities and tasks.
-    type: list
-    elements: dict
+    description: >-
+        Dictionary containing root-level summary counts and a list of accounts with
+        their nested opportunities and tasks.
+    type: dict
     contains:
-        account:
-            description: Account (Company) name.
-            type: str
-        account_url:
-            description: Salesforce URL for the account.
-            type: str
-        opportunities:
-            description: Opportunities ("Related To") grouped under this account.
+        total_accounts:
+            description: Total number of accounts in the report.
+            type: int
+        total_opps:
+            description: Total number of opportunities across all accounts.
+            type: int
+        total_tasks:
+            description: Total number of tasks across all accounts and opportunities.
+            type: int
+        accounts:
+            description: List of accounts, each with their nested opportunities and tasks.
             type: list
             elements: dict
             contains:
-                opportunity:
-                    description: Opportunity name.
+                account:
+                    description: Account (Company) name.
                     type: str
-                opportunity_url:
-                    description: Salesforce URL for the opportunity.
+                account_url:
+                    description: Salesforce URL for the account.
                     type: str
-                tasks:
-                    description: Individual task/activity records for this opportunity.
+                total_opps:
+                    description: Number of opportunities under this account.
+                    type: int
+                total_tasks:
+                    description: Total number of tasks across all opportunities in this account.
+                    type: int
+                opportunities:
+                    description: Opportunities ("Related To") grouped under this account.
                     type: list
                     elements: dict
                     contains:
-                        account:
-                            description: Account name (duplicated from the parent account for standalone use).
-                            type: str
-                        account_url:
-                            description: Salesforce URL for the account.
-                            type: str
                         opportunity:
-                            description: Opportunity name (duplicated from the parent opportunity for standalone use).
+                            description: Opportunity name.
                             type: str
                         opportunity_url:
                             description: Salesforce URL for the opportunity.
                             type: str
-                        subject:
-                            description: Task subject.
-                            type: str
-                        task_url:
-                            description: Salesforce URL for the task.
-                            type: str
-                        date:
-                            description: Task date, as displayed in the report (e.g. C(3/11/2026)).
-                            type: str
-                        comments:
-                            description: Task comments/description text.
-                            type: str
+                        total_tasks:
+                            description: Number of tasks under this opportunity.
+                            type: int
+                        tasks:
+                            description: Individual task/activity records for this opportunity.
+                            type: list
+                            elements: dict
+                            contains:
+                                account:
+                                    description: Account name (duplicated from the parent account for standalone use).
+                                    type: str
+                                account_url:
+                                    description: Salesforce URL for the account.
+                                    type: str
+                                opportunity:
+                                    description: Opportunity name (duplicated from the parent opportunity for standalone use).
+                                    type: str
+                                opportunity_url:
+                                    description: Salesforce URL for the opportunity.
+                                    type: str
+                                subject:
+                                    description: Task subject.
+                                    type: str
+                                task_url:
+                                    description: Salesforce URL for the task.
+                                    type: str
+                                date:
+                                    description: Task date, as displayed in the report (e.g. C(3/11/2026)).
+                                    type: str
+                                comments:
+                                    description: Task comments/description text.
+                                    type: str
 '''
 
 from datetime import datetime
@@ -147,13 +175,29 @@ def _latest_task_date(opportunity):
     return max(_parse_date(task.get("date")) for task in tasks)
 
 
-def _sort_accounts(accounts):
-    """Sort tasks (date desc) within each opp, then opps (latest task date desc) within each account."""
+def _sort_and_summarize(accounts):
+    """Sort tasks/opps, then add summary counts at every level and return a root dict."""
+    root_total_tasks = 0
+    root_total_opps = 0
+
     for account in accounts:
+        account_total_tasks = 0
         for opportunity in account["opportunities"]:
             opportunity["tasks"].sort(key=lambda task: _parse_date(task.get("date")), reverse=True)
+            opportunity["total_tasks"] = len(opportunity["tasks"])
+            account_total_tasks += opportunity["total_tasks"]
         account["opportunities"].sort(key=_latest_task_date, reverse=True)
-    return accounts
+        account["total_opps"] = len(account["opportunities"])
+        account["total_tasks"] = account_total_tasks
+        root_total_opps += account["total_opps"]
+        root_total_tasks += account_total_tasks
+
+    return {
+        "total_accounts": len(accounts),
+        "total_opps": root_total_opps,
+        "total_tasks": root_total_tasks,
+        "accounts": accounts,
+    }
 
 
 def parse_sf_tasks(html_content):
@@ -165,7 +209,7 @@ def parse_sf_tasks(html_content):
         )
 
     if not html_content:
-        return []
+        return {"total_accounts": 0, "total_opps": 0, "total_tasks": 0, "accounts": []}
 
     soup = BeautifulSoup(to_text(html_content), "html.parser")
     table = soup.find("table", class_="reportTable")
@@ -230,7 +274,7 @@ def parse_sf_tasks(html_content):
             }
         )
 
-    return _sort_accounts(accounts)
+    return _sort_and_summarize(accounts)
 
 
 class FilterModule:

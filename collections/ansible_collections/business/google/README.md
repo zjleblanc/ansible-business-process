@@ -7,15 +7,21 @@ Ansible collection for interacting with Google Workspace (gsuite) services.
 - `gsheet_update` -- Update a Google Spreadsheet cell by row lookup (service account or OAuth2).
 - `gmail_search` -- Search Gmail messages with basic filters (to/from/subject/labels) and retrieve their contents.
 
+## Filters
+
+- `parse_sf_tasks` -- Parse a Salesforce "Activities" report email (HTML) into structured
+  account/opportunity/task data with summary counts at every level.
+
 ## Requirements
 
 - `google-api-python-client`
 - `google-auth`
+- `beautifulsoup4` (required by `parse_sf_tasks`)
 
 Install with:
 
 ```bash
-pip install google-api-python-client google-auth
+pip install google-api-python-client google-auth beautifulsoup4
 ```
 
 ## Authentication
