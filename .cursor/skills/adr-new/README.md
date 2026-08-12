@@ -1,6 +1,6 @@
 # ADR New Skill
 
-A Claude Code skill for creating Architecture Decision Records (ADRs) with guided workflows, consistency checking, and automatic linking to Decision Records (DRs).
+A Cursor agent skill for creating Architecture Decision Records (ADRs) with guided workflows, consistency checking, and automatic linking to Decision Records (DRs).
 
 ## What This Skill Does
 
@@ -25,31 +25,31 @@ Invoke this skill when you need to:
 
 ### Interactive Mode
 ```
-/adr-new
+Create an ADR
 ```
-Guided prompts walk you through all sections of the ADR.
+or ask for the `adr-new` skill. Guided prompts walk you through all sections of the ADR.
 
 ### Quick Mode with Title
 ```
-/adr-new "Decision Title"
+Create an ADR titled "Decision Title"
 ```
 Skips title prompt, continues with interactive questions.
 
 ### From Decision Record
 ```
-/adr-new --from-dr DR-008
+Create an ADR from DR-008
 ```
 Pre-fills context, options, and decision from a decided DR.
 
 ### With Status
 ```
-/adr-new "Decision Title" --status accepted
+Create an ADR titled "Decision Title" with status accepted
 ```
 Sets the initial status (proposed or accepted).
 
 ### Combined Parameters
 ```
-/adr-new "gRPC over REST" --from-dr DR-015 --status accepted
+Create an ADR "gRPC over REST" from DR-015 with status accepted
 ```
 
 ## What the Skill Provides
@@ -283,7 +283,7 @@ The skill defaults to "Proposed" to encourage review, but you can specify `--sta
 
 ## Integration with Other Skills
 
-- **dr-new**: Create Decision Records for questions → resolve them → use `/adr-new --from-dr` to formalize
+- **dr-new**: Create Decision Records for questions → resolve them → use `adr-new` with `--from-dr` to formalize
 - **sdlc-status**: Review all ADRs and their current status
 - **simplify**: Can suggest when architectural decisions should be documented as ADRs
 
@@ -300,24 +300,24 @@ The skill defaults to "Proposed" to encourage review, but you can specify `--sta
 
 ### After a Team Decision
 ```
-User: We decided to use PostgreSQL for the main database instead of MongoDB
-/adr-new "PostgreSQL for Main Database"
+User: We decided to use PostgreSQL for the main database instead of MongoDB.
+Create an ADR titled "PostgreSQL for Main Database"
 ```
 
 ### Formalizing a Discussion
 ```
-User: /adr-new --from-dr DR-023
+User: Create an ADR from DR-023
 ```
 
 ### Quick Documentation
 ```
-User: /adr-new "Use gRPC for microservices" --status accepted
+User: Create an ADR "Use gRPC for microservices" with status accepted
 ```
 
 ### During Architecture Design
 ```
 User: We've been discussing caching strategies. Let me document this decision.
-/adr-new
+Create an ADR
 ```
 
 ## Output

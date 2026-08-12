@@ -291,7 +291,7 @@ The agent SHOULD suggest using configuration-as-code patterns when working with 
 
 Reference:
 
-- `/aap-config-as-code` skill/pattern
+- `.cursor/skills/aap-config-as-code` skill/pattern
 
 ---
 

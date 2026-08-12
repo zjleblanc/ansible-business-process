@@ -5,11 +5,6 @@ description: >-
   architecture decision, "record this choice", "we decided to use X", or
   after resolving an architectural DR. Do NOT use for capturing questions
   (use dr-new instead) or reviewing existing ADRs (use sdlc-status instead).
-argument-hint: "[Decision Title] [--from-dr DR-NNN] [--status accepted]"
-user-invocable: true
-metadata:
-  author: APME Team
-  version: 1.0.0
 ---
 
 # ADR New
@@ -18,7 +13,7 @@ Create an Architecture Decision Record.
 
 ## Arguments
 
-If `$ARGUMENTS` is provided, parse for:
+If the user provides arguments, parse for:
 - Decision title in quotes → use as ADR title
 - `--from-dr DR-NNN` → pre-fill from a decided DR
 - `--status X` → set status (proposed/accepted)
@@ -26,10 +21,10 @@ If `$ARGUMENTS` is provided, parse for:
 ## Usage
 
 ```
-/adr-new                            # Interactive mode
-/adr-new "Decision Title"           # Quick mode with title
-/adr-new --from-dr DR-008           # Pre-fill from decided DR
-/adr-new "Title" --status accepted  # With status
+adr-new                            # Interactive mode
+adr-new "Decision Title"           # Quick mode with title
+adr-new --from-dr DR-008           # Pre-fill from decided DR
+adr-new "Title" --status accepted  # With status
 ```
 
 ## Behavior

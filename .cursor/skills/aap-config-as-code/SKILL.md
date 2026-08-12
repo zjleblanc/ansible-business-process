@@ -400,7 +400,7 @@ Avoid these mistakes:
 - bypassing dispatch without a clear reason
 - inventing variable names instead of using the collection’s expected list names
 
-## Output style for Claude
+## Output style for the agent
 
 When producing changes for an AAP config-as-code repo:
 
