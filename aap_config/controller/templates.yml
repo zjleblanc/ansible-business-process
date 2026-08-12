@@ -10,6 +10,7 @@ controller_templates:
     playbook: playbooks/pb_update_account_tasks.yml
     inventory: Autodotes Lab
     credentials:
-      - Ansible Vault
+      - Google OAuth Client
+      - OpenAI Config
     labels:
       - Business
