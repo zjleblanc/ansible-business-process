@@ -1,0 +1,16 @@
+# ansible-navigator run playbooks/pb_deploy_aap_config.yml
+---
+- name: Deploy AAP configuration
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Load AAP configuration
+      ansible.builtin.include_vars:
+        dir: "{{ playbook_dir }}/../aap_config"
+        extensions:
+          - yml
+
+    - name: Apply AAP configuration
+      ansible.builtin.include_role:
+        name: infra.aap_configuration.dispatch
