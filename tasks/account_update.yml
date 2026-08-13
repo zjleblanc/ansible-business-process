@@ -50,9 +50,9 @@
           - column: F
             value: "{{ r_ai_summary.json.choices[0].message.content }}"
           - column: G
-            value: "{{ _recent_tasks | to_json }}"
+            value: "{{ account.tasks | to_json }}"
 
-- name: Update gsheet row with empty data for {{ account.account }}
+- name: Update gsheet row with empty summary for {{ account.account }}
   when: _recent_tasks | length == 0
   business.google.gsheet_update:
     gsheet_id: "{{ gsheet_id | default(omit) }}"
@@ -72,4 +72,4 @@
       - column: F
         value: "{}"
       - column: G
-        value: "{}"
+        value: "{{ account.tasks | to_json }}"
