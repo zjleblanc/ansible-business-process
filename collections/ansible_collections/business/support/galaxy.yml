@@ -1,0 +1,19 @@
+---
+namespace: business
+name: support
+version: 1.0.0
+readme: README.md
+authors:
+  - Ansible Business Process
+description: Modules for fetching, summarizing, and tracking Red Hat support cases.
+license:
+  - GPL-3.0-or-later
+tags:
+  - redhat
+  - support
+  - graphql
+  - llm
+  - sheets
+repository: https://github.com/zjleblanc/ansible-support-analyzer
+issues: https://github.com/zjleblanc/ansible-support-analyzer/issues
+build_ignore: []

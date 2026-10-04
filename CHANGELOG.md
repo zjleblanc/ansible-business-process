@@ -1,5 +1,48 @@
 # Changelog
 
+## 2026-10-04 — Merge ansible-support-analyzer (analyzer + tracker workflows)
+
+### Added
+- New `business.support` collection
+  (`collections/ansible_collections/business/support/`) with four modules migrated from
+  `ansible-support-analyzer`'s `library/`: `graphql_cases` (Red Hat GraphQL case fetch with
+  server-side filtering/pagination), `llm_summarize` (OpenAI-compatible case summarization),
+  `gsheet_update` (service-account-only cell update with smart JSON truncation), and
+  `gsheet_tracker` (read/diff/write case-tracking states against a dedicated worksheet tab).
+  This `gsheet_update` is intentionally kept separate from the existing
+  `business.google.gsheet_update` (different auth model and write semantics — see the new
+  collection's README for the comparison).
+- Two new playbooks: `playbooks/pb_analyze_support_cases.yml` (AI-powered support case
+  analysis into a Google Sheet / markdown / PDF report) and
+  `playbooks/pb_track_support_cases.yml` (incremental case change tracking with e-mail
+  notifications), each using FQCNs for all `business.support` module calls.
+- Two new task files: `tasks/account_analyze.yml` and `tasks/account_track.yml` (per-account
+  logic included by the two new playbooks).
+- Three new templates under `templates/`: `support_case_analysis.md.j2`,
+  `support_case_analysis.json.j2`, and `support_case_tracking_email.html.j2`.
+- New `docs/` tree with `docs/support-analyzer/` (QUICKSTART, LLM_CONFIGURATION,
+  IMPLEMENTATION_SUMMARY, DATA_FLOW, EXAMPLES, and the archived original changelog —
+  `CHANGELOG.archive.md`), `docs/support-tracker/` (DATA_FLOW, EXAMPLES), and `docs/common/`
+  (GSUITE_QUICKSTART, USAGE) for documentation spanning both workflows.
+- Two new AAP job templates in `aap_config/controller/templates.yml` ("BPA // Support Case
+  Analyzer", "BPA // Support Case Tracker"), two new credential types in
+  `aap_config/controller/credential_types.yml` ("Ansible Support Analyzer", "SMTP Server"), and
+  three new credential instances in `aap_config/controller/credentials.yml`.
+- `openai`, `requests`, and `python-dateutil` added to
+  `execution-environment/requirements/requirements.txt`; `community.general` and the new
+  `business.support` collection added to `collections/requirements.yml`.
+- `scripts/generate_pdf.js` (optional Puppeteer-based PDF helper for the analyzer's `pdf` tag).
+- `reports/` and `refs/` added to `.gitignore`.
+
+### Notes
+- This is a merge, not a rewrite: the original `ansible-support-analyzer` repository's own
+  changelog is preserved verbatim at
+  [docs/support-analyzer/CHANGELOG.archive.md](docs/support-analyzer/CHANGELOG.archive.md)
+  rather than interleaved with this file.
+- The incoming repo's `group_vars/all/vars.yml` defaults were inlined into each new playbook's
+  `vars:` section instead of introducing a `group_vars/` directory, matching this repo's
+  existing pattern of playbook-local defaults plus `vault.yml` for secrets.
+
 ## 2026-08-12 — Limit account activity summaries to the last 3 months
 
 ### Added

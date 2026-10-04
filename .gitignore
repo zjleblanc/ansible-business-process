@@ -4,6 +4,10 @@
 
 playbooks/.artifacts/
 
+# Support case analyzer/tracker generated reports and reference material
+reports/
+refs/
+
 # Retry files generated on playbook failures
 *.retry
 

@@ -1,0 +1,145 @@
+# ansible-navigator run playbooks/pb_track_support_cases.yml -e @vault.yml -e @vars/accounts.yml
+---
+- name: Track Red Hat support cases and notify on changes
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    redhat_sso_url: "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token"
+    redhat_graphql_url: "https://graphql.redhat.com"
+    redhat_graphql_client_name: "ansible-business-process"
+    redhat_graphql_client_version: "1.0"
+    redhat_graphql_page_size: 200
+    redhat_api_timeout: 30
+    activity_date: >-
+      {{
+        (now().replace(month=((now().month - 7) % 12 + 1), year=now().year - (1 if now().month <= 6 else 0)))
+        .strftime('%Y-%m-%d')
+      }}
+    gsheet_sheet: "Support Case Tracker"
+    gsheet_table_name: "{{ gsheet_sheet }}"
+    tracker_status_filter: { ne: "Closed" }
+    tracker_email_subject: "Support Case Tracker - Changes Detected"
+    tracker_notify_on_no_changes: false
+    secure_logging: true
+    tracking_results: []
+    tracker_pending_rows: []
+
+  tasks:
+    - name: Assert required variables are provided
+      ansible.builtin.assert:
+        that:
+          - redhat_offline_token is defined # offline token from https://access.redhat.com/management/api
+          - redhat_offline_token | length > 0
+          - gsheet_id is defined # Google Sheet ID
+          - email_smtp_server is defined # SMTP host
+          - email_smtp_server | length > 0
+          - email_smtp_from_address is defined
+          - email_smtp_from_address | length > 0
+          - tracker_email_to is defined # e.g. ["team@example.com"]
+          - tracker_email_to | length > 0
+        fail_msg: >-
+          Required extra vars missing: redhat_offline_token, gsheet_id, email_smtp_server,
+          email_smtp_from_address, tracker_email_to. Provide them via -e @vault.yml or other extra vars.
+        quiet: true
+
+    - name: Build account list from legacy single-account variables
+      when: support_case_accounts is not defined
+      ansible.builtin.set_fact:
+        support_case_accounts:
+          - name: "{{ support_case_account_name }}"
+            ids: "{{ support_case_account_ids }}"
+
+    - name: Validate account configuration
+      ansible.builtin.assert:
+        that:
+          - support_case_accounts is defined
+          - support_case_accounts | length > 0
+          - support_case_accounts | map(attribute='name') | list | length == support_case_accounts | length
+          - support_case_accounts | map(attribute='ids') | list | length == support_case_accounts | length
+        fail_msg: >-
+          No accounts configured. Provide support_case_accounts (list of name/ids dicts) or
+          support_case_account_name + support_case_account_ids for a single account.
+        success_msg: "Tracking {{ support_case_accounts | length }} account configuration(s)"
+
+    - name: Exchange offline token for access token via Red Hat SSO
+      ansible.builtin.uri:
+        url: "{{ redhat_sso_url }}"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: refresh_token
+          client_id: rhsm-api
+          refresh_token: "{{ redhat_offline_token }}"
+        status_code: 200
+        timeout: 30
+      register: r_sso_token
+      no_log: "{{ secure_logging }}"
+
+    - name: Set access token from SSO response
+      ansible.builtin.set_fact:
+        redhat_access_token: "{{ r_sso_token.json.access_token }}"
+      no_log: "{{ secure_logging }}"
+
+    - name: Read previous tracker state once for every tracked account
+      business.support.gsheet_tracker:
+        state: read
+        gsheet_id: "{{ gsheet_id | default(omit) }}"
+        credentials_path: "{{ google_credentials_path | default(omit) }}"
+        credentials: "{{ google_credentials | default(omit) }}"
+        sheet: "{{ gsheet_sheet }}"
+        account_names: "{{ support_case_accounts | map(attribute='name') | list }}"
+      register: r_tracker_read
+
+    - name: Track each account configuration
+      ansible.builtin.include_tasks: ../tasks/account_track.yml
+      loop: "{{ support_case_accounts }}"
+      loop_control:
+        loop_var: account
+        label: "{{ account.name }}"
+
+    - name: Build the full row matrix for this run
+      ansible.builtin.set_fact:
+        tracker_final_rows: "{{ r_tracker_read.other_rows + tracker_pending_rows }}"
+
+    - name: Write tracker state once for the whole run
+      business.support.gsheet_tracker:
+        state: write
+        gsheet_id: "{{ gsheet_id | default(omit) }}"
+        credentials_path: "{{ google_credentials_path | default(omit) }}"
+        credentials: "{{ google_credentials | default(omit) }}"
+        sheet: "{{ gsheet_sheet }}"
+        table_name: "{{ gsheet_table_name }}"
+        rows: "{{ tracker_final_rows }}"
+      register: r_tracker_write
+
+    - name: Determine whether any account has changes
+      ansible.builtin.set_fact:
+        tracking_has_any_changes: "{{ tracking_results | selectattr('has_changes') | list | length > 0 }}"
+
+    - name: Send change notification email
+      when: tracking_has_any_changes or tracker_notify_on_no_changes
+      community.general.mail:
+        host: "{{ email_smtp_server }}"
+        port: "{{ email_smtp_server_port | default(omit) }}"
+        username: "{{ email_smtp_username | default(omit) }}"
+        password: "{{ email_smtp_password | default(omit) }}"
+        secure: "{{ tracker_smtp_secure | default(omit) }}"
+        from: "{{ email_smtp_from_address }}"
+        to: "{{ tracker_email_to }}"
+        subject: >-
+          {{ tracker_email_subject }}{{ '' if tracking_has_any_changes else ' (no changes)' }}
+        subtype: html
+        body: "{{ lookup('template', '../templates/support_case_tracking_email.html.j2') }}"
+      no_log: "{{ secure_logging }}"
+
+    - name: Display tracking run summary
+      ansible.builtin.debug:
+        msg:
+          - "============================================"
+          - "Support Case Tracking Run Complete!"
+          - "============================================"
+          - "Accounts Tracked: {{ tracking_results | length }}"
+          - "Accounts With Changes: {{ tracking_results | selectattr('has_changes') | list | length }}"
+          - "Notification Sent: {{ tracking_has_any_changes or tracker_notify_on_no_changes }}"
+          - "============================================"

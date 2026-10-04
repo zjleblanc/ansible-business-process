@@ -1,0 +1,96 @@
+# ansible-navigator run playbooks/pb_analyze_support_cases.yml -e @vault.yml -e "support_case_accounts=[{name: 'Parasol', ids: ['12345678']}]"
+# ansible-navigator run playbooks/pb_analyze_support_cases.yml -e @vault.yml -e @vars/accounts.yml --tags pdf
+---
+- name: Analyze Red Hat support cases with AI
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    redhat_sso_url: "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token"
+    redhat_graphql_url: "https://graphql.redhat.com"
+    redhat_graphql_client_name: "ansible-business-process"
+    redhat_graphql_client_version: "1.0"
+    redhat_graphql_page_size: 200
+    redhat_api_timeout: 30
+    llm_temperature: 0.7
+    llm_max_tokens: 2048
+    llm_timeout: 120
+    gsheet_sheet: "Accounts"
+    gsheet_lookup_column: "K"
+    gsheet_update_column: "O"
+    gsheet_truncate_priority_products:
+      - "Red Hat Ansible Automation Platform"
+    activity_date: >-
+      {{
+        (now().replace(month=((now().month - 7) % 12 + 1), year=now().year - (1 if now().month <= 6 else 0)))
+        .strftime('%Y-%m-%d')
+      }}
+    analysis_file_dest: "reports/{{ support_case_account_name | default('Account') }}_support_case_summary_{{ now(fmt='%Y-%m-%d') }}"
+    secure_logging: true
+
+  tasks:
+    - name: Assert required variables are provided
+      ansible.builtin.assert:
+        that:
+          - redhat_offline_token is defined # offline token from https://access.redhat.com/management/api
+          - redhat_offline_token | length > 0
+          - llm_api_key is defined # EMPTY for local vLLM/Ollama, or a real API key
+          - llm_api_key | length > 0
+          - llm_api_base_url is defined # http://localhost:8000/v1 or https://api.openai.com/v1
+          - llm_api_base_url | length > 0
+          - llm_model is defined # e.g. gpt-4o-mini
+        fail_msg: >-
+          Required extra vars missing: redhat_offline_token, llm_api_key, llm_api_base_url, llm_model.
+          Provide them via -e @vault.yml or other extra vars.
+        quiet: true
+
+    - name: Build account list from legacy single-account variables
+      when: support_case_accounts is not defined
+      ansible.builtin.set_fact:
+        support_case_accounts:
+          - name: "{{ support_case_account_name }}"
+            ids: "{{ support_case_account_ids }}"
+
+    - name: Validate account configuration
+      ansible.builtin.assert:
+        that:
+          - support_case_accounts is defined
+          - support_case_accounts | length > 0
+          - support_case_accounts | map(attribute='name') | list | length == support_case_accounts | length
+          - support_case_accounts | map(attribute='ids') | list | length == support_case_accounts | length
+        fail_msg: >-
+          No accounts configured. Provide support_case_accounts (list of name/ids dicts) or
+          support_case_account_name + support_case_account_ids for a single account.
+        success_msg: "Processing {{ support_case_accounts | length }} account configuration(s)"
+
+    - name: Ensure reports directory exists
+      ansible.builtin.file:
+        path: reports
+        state: directory
+        mode: '0755'
+
+    - name: Exchange offline token for access token via Red Hat SSO
+      ansible.builtin.uri:
+        url: "{{ redhat_sso_url }}"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: refresh_token
+          client_id: rhsm-api
+          refresh_token: "{{ redhat_offline_token }}"
+        status_code: 200
+        timeout: 30
+      register: r_sso_token
+      no_log: "{{ secure_logging }}"
+
+    - name: Set access token from SSO response
+      ansible.builtin.set_fact:
+        redhat_access_token: "{{ r_sso_token.json.access_token }}"
+      no_log: "{{ secure_logging }}"
+
+    - name: Analyze each account configuration
+      ansible.builtin.include_tasks: ../tasks/account_analyze.yml
+      loop: "{{ support_case_accounts }}"
+      loop_control:
+        loop_var: account
+        label: "{{ account.name }}"

@@ -1,0 +1,401 @@
+> **Archived changelog.** This file is a verbatim copy of `CHANGELOG.md` from the standalone
+> [`ansible-support-analyzer`](https://github.com/zjleblanc/ansible-support-analyzer) repository
+> at the time it was merged into `ansible-business-process`. It is preserved as-is for history;
+> new changes go in the top-level [CHANGELOG.md](../../CHANGELOG.md) instead. Paths referenced
+> below (e.g. `library/`, `analyze_support_cases.yml`, `group_vars/`) reflect the old repository's
+> layout, not the current one.
+
+---
+
+# Changelog (archived from ansible-support-analyzer)
+
+All notable changes to the Ansible Support Analyzer project will be documented in this file.
+
+## 2026-10-03 — Fix infinite recursion in group_vars
+
+### Fixed
+- **Infinite recursion bug**: Fixed a latent bug in `group_vars/all/vars.yml` where
+  variables were defined in terms of themselves (e.g. `tracker_smtp_secure: "{{ tracker_smtp_secure | default(omit) }}"`).
+  This caused a recursion depth error when the variable wasn't overridden by a higher-precedence source (like extra vars).
+- **Variable simplification**: Converted `email_smtp_server`, `email_smtp_server_port`,
+  `email_smtp_from_address`, and `tracker_email_to` to use direct values/lists instead of
+  self-referencing defaults. Optional parameters (`email_smtp_username`,
+  `email_smtp_password`, `tracker_smtp_secure`) are now omitted from group_vars entirely,
+  relying on the playbook's existing `default(omit)` logic.
+
+## 2026-10-03 — Single read/write per tracker run; exclude closed cases; Sheets Table support
+
+### Changed
+- **`gsheet_tracker` module** (`library/gsheet_tracker.py`): Replaced the `present`/`read`
+  states with three explicit, composable states — `read`, `diff`, `write` — so a multi-account
+  tracker run makes exactly **one** read and **one** write against the Google Sheets API, no
+  matter how many accounts are tracked (previously: one read + one full clear/rewrite *per
+  account*). `read` now reads the whole tab once and returns per-account previous state plus
+  `other_rows` for every account outside the current run; `diff` is a pure local computation
+  (no API calls) that builds one account's replacement rows; `write` performs the single
+  clear+rewrite with the fully assembled row list.
+  - Also fixes a latent bug where untouched accounts' `HYPERLINK` Case ID formulas were
+    silently flattened to plain text on every write that touched a *different* account — reads
+    now use `valueRenderOption=FORMULA` so formulas round-trip verbatim.
+- **`tasks/track_account.yml`** / **`track_support_cases.yml`**: Reworked around the new
+  module states — one `gsheet_tracker state=read` before the per-account loop, one
+  `state=diff` per account (accumulating rows into a `tracker_pending_rows` fact), and one
+  `state=write` after the loop.
+- **`tasks/track_account.yml`**: The GraphQL fetch now passes
+  `status_filter: "{{ tracker_status_filter }}"` (default `{ne: "Closed"}`) so closed cases are
+  excluded server-side and never re-enter the tracker's "active" set — a case that drops out of
+  the fetch because it's now closed is exactly what the diff reports under `closed_cases`.
+
+### Added
+- **`gsheet_table_name` variable** (`group_vars/all/vars.yml`, defaults to `gsheet_sheet`):
+  `gsheet_tracker state=write` creates/resizes a Google Sheets API v4 "Table" object
+  (`addTable`/`updateTable` via `batchUpdate`) over the tracker tab's data range, named after
+  this variable. Table creation/resizing is best-effort (a failure only emits a module warning,
+  since the row data has already been written by that point). Set to `""` to skip.
+  - Note: this is a Sheets API feature, not a Drive API one — the Drive API (`v3`) only exposes
+    file/folder metadata and permissions and has no endpoint for spreadsheet cell data or
+    tables, so it cannot support this; the Sheets API (which this module already uses) does.
+- **`tracker_status_filter` variable** (`group_vars/all/vars.yml`, default `{ne: "Closed"}`):
+  configurable GraphQL status filter for the tracker's fetch.
+- **Documentation**: Updated `AGENTS.md`, `docs/DATA_FLOW.md`, `docs/EXAMPLES.md`, and
+  `docs/USAGE.md` for the new read/diff/write flow, `gsheet_table_name`, and
+  `tracker_status_filter`.
+
+## 2026-10-03 — Migrate case fetching to the Red Hat GraphQL API
+
+### Added
+- **`graphql_cases` module** (`library/graphql_cases.py`): Queries the Red Hat GraphQL API
+  (`https://graphql.redhat.com`) for support cases with server-side filtering (account
+  numbers via `in`, last-modified date via `gt`, optional status/product filters — including
+  `like` wildcard matching) instead of pulling the full case list and filtering client-side.
+  Handles cursor-based pagination automatically and normalizes GraphQL field names back to
+  the legacy REST shape (`caseNumber`, `summary`, `product`, etc.) so templates needed no
+  changes.
+- **`gsheet_tracker` `state: read` mode**: Reads the tracker sheet and returns
+  `last_seen_timestamp` / `total_previous` for an account without writing, so the tracker
+  playbook can determine an incremental fetch cutoff before calling the GraphQL API.
+- **New variables** in `group_vars/all/vars.yml`: `redhat_graphql_url`,
+  `redhat_graphql_client_name`, `redhat_graphql_client_version`, `redhat_graphql_page_size`.
+- **`docs/DATA_FLOW.md`**: Sequence-diagram walkthrough of the analyzer and tracker data flows
+  against SSO, GraphQL, Google Sheets, and the LLM API.
+
+### Changed
+- **`tasks/analyze_account.yml`**: Replaced the REST `POST /cases/filter` loop (one request per
+  account ID) plus client-side `selectattr` activity-date filtering with a single
+  `graphql_cases` call per account config — filtering and pagination now happen server-side.
+- **`tasks/track_account.yml`**: Now reads the previous `last_seen_timestamp` via
+  `gsheet_tracker state=read` before fetching, so each run only queries cases modified since
+  the last run (falls back to `tracker_last_run_date` override, then `activity_date`). Also
+  requests cases with `include_description: false` to shrink payload size.
+- **Documentation**: Updated `AGENTS.md` and `docs/EXAMPLES.md` with the GraphQL endpoint,
+  module usage, and the tracker's incremental-fetch behavior.
+
+## 2026-10-03 — Link case IDs to Red Hat Customer Portal
+
+### Changed
+- **`gsheet_tracker` module**: Convert Case ID column values into `=HYPERLINK`
+  formulas pointing to the Red Hat Customer Portal. This makes case IDs
+  clickable directly within the Google Sheet.
+- **`.gitignore`**: Added `refs/` directory to ignored patterns.
+
+## [1.6.0] - 2026-10-02
+
+### Added
+- **`track_support_cases.yml`**: New cadence-friendly playbook that queries the same
+  `support_case_accounts`, records active cases in a dedicated Google Sheet tab, diffs
+  against the previously recorded state, and emails a change summary.
+- **`gsheet_tracker` module** (`library/gsheet_tracker.py`): Owns a worksheet tab end-to-end —
+  reads prior rows for an account, diffs them against the current case list (new / closed /
+  updated severity, status, owner), rewrites that account's rows, and returns the diff. The
+  tab is self-managed (auto-created header, fixed column layout) and intentionally independent
+  of the `Accounts` tab / lookup-column convention used by `analyze_support_cases.yml`.
+- **`tasks/track_account.yml`**: Per-account fetch + normalize + track workflow, mirroring
+  `tasks/analyze_account.yml`'s structure.
+- **`templates/tracking_email.html.j2`**: HTML email summarizing new/closed/updated cases
+  across all tracked accounts, sent via `community.general.mail`.
+- **New variables** in `group_vars/all/vars.yml`: `email_smtp_server`, `email_smtp_server_port`,
+  `email_smtp_username`, `email_smtp_password`, `email_smtp_from_address`, `tracker_smtp_secure`,
+  `tracker_email_to`, `tracker_email_subject`, `tracker_notify_on_no_changes`.
+- **Ansible Automation Platform**: New [`config/credential_types.yml`](config/credential_types.yml)
+  (replaces `support_analyzer.cred.yml`) defining a `controller_credential_types` list with two
+  credential types:
+  - **"Ansible Support Analyzer"**: Red Hat, LLM, and Google Sheets fields/injectors, shared by
+    both `analyze_support_cases.yml` and `track_support_cases.yml` via **separate Credential
+    instances** attached to each job template (`gsheet_sheet` defaults to `Support Case Tracker`
+    for the tracker's Credential; the analyze job template's Credential overrides it to
+    `Accounts`). No `TRACKER_*` environment variables are injected by this type.
+  - **"SMTP Server"**: mirrored from
+    [ansible-cac](https://github.com/zjleblanc/ansible-cac/blob/main/config/common/credential_types.yml),
+    injecting `email_smtp_server`, `email_smtp_server_port`, `email_smtp_username`,
+    `email_smtp_password`, and `email_smtp_from_address` as `extra_vars`. Attached only to the
+    `track_support_cases.yml` job template for change-notification emails.
+- **Documentation**: New "Tracking Support Case Changes" section in
+  [docs/EXAMPLES.md](docs/EXAMPLES.md).
+
+### Removed
+- All `TRACKER_*` environment variables (`TRACKER_GSHEET_SHEET`, `TRACKER_SMTP_HOST`,
+  `TRACKER_SMTP_PORT`, `TRACKER_SMTP_USERNAME`, `TRACKER_SMTP_PASSWORD`, `TRACKER_EMAIL_FROM`,
+  `TRACKER_EMAIL_TO`) and their corresponding credential type fields. SMTP settings now come
+  from the dedicated "SMTP Server" credential type; the tracker worksheet tab name now reuses
+  `gsheet_sheet`/`GSHEET_SHEET` (set per-Credential instead of a separate `tracker_gsheet_sheet`).
+- `support_analyzer.cred.yml` (superseded by `config/credential_types.yml`).
+
+### Dependencies
+- Requires the `community.general` collection for `community.general.mail`
+  (`ansible-galaxy collection install community.general`).
+
+## [1.5.0] - 2026-08-25
+
+### Added
+- **Smart JSON truncation**: The `gsheet_update` module now proactively shortens text fields (descriptions and summaries) to fit the Google Sheets 50,000-character single-cell limit.
+- **Schema-safe implementation**: Truncation only modifies string values; it never deletes keys, removes array elements, or adds new metadata to the JSON payload, ensuring downstream consumers aren't broken.
+- **Priority-aware trimming**: Case data for specific products (defaulting to "Red Hat Ansible Automation Platform") is preserved longest during the truncation cascade.
+- **Truncation metadata**: Module returns `truncated` (bool), `original_chars` (int), and `final_chars` (int) to the Ansible result for visibility.
+- **New module parameters**: Added `truncate`, `truncate_priority_products`, and `max_cell_chars` to the `gsheet_update` module for fine-grained control.
+- **Centrally managed priority**: `gsheet_truncate_priority_products` variable added to `group_vars/all/vars.yml`.
+
+### Changed
+- **Truncation warnings**: The report generation workflow now includes a warning task that triggers when a Google Sheets report has been shortened, directing users to the full Markdown/PDF reports.
+
+## [1.4.0] - 2026-05-28
+
+### Added
+- **Default activity date filter**: `default_activity_date` in `group_vars/all/vars.yml` sets a 6-month lookback from the run date using the `now()` Jinja filter (no `gather_facts` required)
+- **Activity date filtering**: Cases are filtered by `lastModifiedDate >= activity_date` in `tasks/analyze_account.yml`
+- **Google Sheets integration**: New `gsheet_update` module updates a spreadsheet row by lookup column/value
+- **JSON report output**: `templates/report.json.j2` produces minified JSON for sheet cells (tag: `json`)
+- **Multi-account batch runs**: `support_case_accounts` list with per-account `name`, `ids`, and optional overrides
+- **Task refactor**: Per-account workflow in `tasks/analyze_account.yml` (included from main playbook)
+- **Ansible Automation Platform**: Custom credential type (`support_analyzer.cred.yml`, `controller/`) injects Red Hat, LLM, and Google credentials
+- **Google API dependencies**: `google-api-python-client`, `google-auth`, and related packages in `requirements.txt`
+- **Documentation**: [docs/GSUITE_QUICKSTART.md](docs/GSUITE_QUICKSTART.md) for Google Cloud and Sheets setup
+
+### Fixed
+- **`gsheet_update` on Automation Platform**: Serialize dict/list `update_value` payloads to JSON text before writing to Google Sheets, fixing `Invalid values... struct_value` when the controller parses rendered report JSON as a Python object
+
+### Changed
+- Main playbook sets `activity_date` from `default_activity_date`; override with `-e activity_date=YYYY-MM-DD` or per-account `activity_date`
+- Main playbook loops `support_case_accounts` instead of inlining fetch/analyze tasks
+- Legacy single-account variables (`support_case_account_name` + `support_case_account_ids`) still supported
+- **Tag-based outputs**: `json` (default) writes to Google Sheets; `pdf` generates markdown/HTML/PDF reports
+- `llm_summarize` accepts optional `format_instructions` (e.g. HTML for PDF pipeline)
+- `vars/inputs.example.yml` updated for current variable names; documents optional `activity_date` override
+
+### Environment Variables (Google Sheets)
+
+| Variable | Purpose |
+|----------|---------|
+| `GOOGLE_SA_CRED_PATH` | Path to service account JSON key file |
+| `GOOGLE_SHEET_ID` | Spreadsheet ID from the Google Sheets URL |
+| `GSHEET_SHEET` | Worksheet name (default: `Accounts` in Controller credential) |
+| `GSHEET_LOOKUP_COLUMN` | Column letter to find the account row |
+| `GSHEET_UPDATE_COLUMN` | Column letter to write the JSON report |
+
+Per-account `gsheet_lookup_value` defaults to the account `name` when not set on the account dict.
+
+## [1.3.0] - 2024-11-21
+
+### Changed - Breaking Changes
+- **Generic LLM Support**: Replaced Google Gemini-specific implementation with generic OpenAI-compatible API support
+  - Now supports vLLM, Ollama, LocalAI, OpenAI, and any OpenAI-compatible endpoint
+  - Module renamed: `gemini_summarize` → `llm_summarize`
+  - Variables renamed:
+    - `gemini_api_key` → `llm_api_key`
+    - `gemini_model` → `llm_model`
+    - `gemini_temperature` → `llm_temperature`
+    - `gemini_max_tokens` → `llm_max_tokens`
+  - Added new variable: `llm_api_base_url` (required)
+  - Added new variable: `llm_timeout` (default: 120 seconds)
+
+### Added
+- Support for local LLM deployment with vLLM
+- Support for Ollama, LocalAI, and other OpenAI-compatible APIs
+- `llm_summarize.py` - New generic module with OpenAI-compatible API
+- `LLM_CONFIGURATION.md` - Comprehensive guide for LLM setup and deployment
+- Configurable API timeout for slow/large models
+- Better privacy: data never leaves your network when using local LLMs
+
+### Removed
+- `gemini_summarize.py` - Replaced by generic `llm_summarize.py`
+- `google-generativeai` dependency - No longer required
+- Gemini-specific configuration variables
+
+### Migration Guide
+
+**If you're upgrading from version 1.2.0:**
+
+1. **Update environment variables**:
+   ```bash
+   # Old (v1.2.0)
+   export GEMINI_API_KEY="your-gemini-key"
+
+   # New (v1.3.0) - Local vLLM
+   export LLM_API_KEY="EMPTY"
+   export LLM_API_BASE_URL="http://localhost:8000/v1"
+   export LLM_MODEL="meta-llama/Llama-2-70b-chat-hf"
+
+   # Or for OpenAI
+   export LLM_API_KEY="sk-..."
+   export LLM_API_BASE_URL="https://api.openai.com/v1"
+   export LLM_MODEL="gpt-4"
+   ```
+
+2. **Update vault file** (if using Ansible Vault):
+   ```bash
+   ansible-vault edit group_vars/all/vault.yml
+   ```
+
+   Replace:
+   ```yaml
+   # Old
+   vault_gemini_api_key: "your-gemini-key"
+
+   # New
+   vault_llm_api_key: "EMPTY"  # or your API key
+   vault_llm_api_base_url: "http://localhost:8000/v1"
+   vault_llm_model: "meta-llama/Llama-2-70b-chat-hf"
+   ```
+
+3. **Update Python dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Start your LLM server** (if using local deployment):
+   ```bash
+   # For vLLM
+   python -m vllm.entrypoints.openai.api_server \
+     --model meta-llama/Llama-2-70b-chat-hf \
+     --port 8000
+
+   # Or for Ollama
+   ollama serve
+   ollama pull llama2
+   ```
+
+5. **Test the updated configuration**:
+   ```bash
+   ansible-playbook analyze_support_cases.yml \
+     -e "customer_account_ids=['123456']" \
+     -e "activity_date=2024-01-01"
+   ```
+
+### Benefits
+
+- **Privacy**: Run LLMs entirely on your infrastructure
+- **Cost**: No per-request API fees with local deployment
+- **Flexibility**: Use any OpenAI-compatible LLM provider
+- **Control**: Full control over model selection and configuration
+- **Performance**: Optimize for your specific hardware
+
+## [1.2.0] - 2024-11-21
+
+### Changed
+- **Fully Qualified Collection Names (FQCNs)**: Updated all module references in the playbook to use FQCNs
+  - `assert` → `ansible.builtin.assert`
+  - `debug` → `ansible.builtin.debug`
+  - `file` → `ansible.builtin.file`
+  - `uri` → `ansible.builtin.uri`
+  - `set_fact` → `ansible.builtin.set_fact`
+  - `template` → `ansible.builtin.template`
+  - This follows Ansible best practices and ensures compatibility across different Ansible environments
+
+### Benefits
+- **Better Compatibility**: Avoids module name conflicts in environments with multiple collections
+- **Future Proof**: Aligns with Ansible best practices and recommendations
+- **Explicit Dependencies**: Makes it clear which collection each module comes from
+- **Improved Maintainability**: Easier to identify module sources and versions
+
+## [1.1.0] - 2024-11-21
+
+### Changed - Breaking Changes
+- **Authentication Method Updated**: Switched from basic authentication (username/password) to OAuth 2.0 via Red Hat SSO
+  - Now uses offline token instead of username/password
+  - Automatically exchanges offline token for temporary access token
+  - Improved security with short-lived access tokens
+
+### Added
+- Red Hat SSO integration for token-based authentication
+- Automatic offline token to access token exchange
+- `SSO_AUTHENTICATION.md` - Comprehensive guide for SSO authentication
+- Token expiration logging
+- Support for Red Hat's OAuth 2.0 refresh token flow
+
+### Updated
+- `analyze_support_cases.yml`: Added SSO token exchange task
+- `group_vars/all/vars.yml`: Changed from `redhat_api_username/password` to `redhat_offline_token`
+- `group_vars/all/vault.yml.example`: Updated with offline token configuration
+- Documentation updated across all files:
+  - README.md
+  - QUICKSTART.md
+  - EXAMPLES.md
+  - IMPLEMENTATION_SUMMARY.md
+
+### Migration Guide
+
+**If you're upgrading from version 1.0.0:**
+
+1. **Get an offline token**:
+   - Visit https://access.redhat.com/management/api
+   - Click "Generate Token"
+   - Copy the offline token
+
+2. **Update environment variables**:
+   ```bash
+   # Old (v1.0.0)
+   export REDHAT_API_USERNAME="your-username"
+   export REDHAT_API_PASSWORD="your-password"
+
+   # New (v1.1.0)
+   export REDHAT_OFFLINE_TOKEN="your-offline-token"
+   ```
+
+3. **Update vault file** (if using Ansible Vault):
+   ```bash
+   ansible-vault edit group_vars/all/vault.yml
+   ```
+
+   Replace:
+   ```yaml
+   # Old
+   vault_redhat_api_username: "username"
+   vault_redhat_api_password: "password"
+
+   # New
+   vault_redhat_offline_token: "offline-token"
+   ```
+
+4. **Test the updated authentication**:
+   ```bash
+   ansible-playbook analyze_support_cases.yml \
+     -e "customer_account_ids=['123456']" \
+     -e "activity_date=2024-01-01"
+   ```
+
+### Technical Details
+
+**New SSO Endpoint**: `https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token`
+
+**Authentication Flow**:
+1. Playbook receives offline token (from env var or vault)
+2. Playbook sends offline token to Red Hat SSO
+3. SSO returns temporary access token (typically expires in 5 minutes)
+4. Playbook uses access token for all API requests
+
+**Security Improvements**:
+- Access tokens are short-lived (improved security)
+- No password storage required
+- Tokens can be revoked from Red Hat portal
+- Offline tokens are long-lived but can be rotated easily
+
+## [1.0.0] - 2024-11-21
+
+### Added
+- Initial release
+- Multi-account support case analysis
+- Date-based activity filtering
+- Markdown report generation
+- Google Gemini AI integration
+- Ansible Vault support for credentials
+- Comprehensive documentation
+- 20+ usage examples

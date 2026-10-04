@@ -6,3 +6,8 @@
 google-api-python-client
 google-auth
 beautifulsoup4
+
+# Required by collections/ansible_collections/business/support (graphql_cases, llm_summarize, gsheet_update, gsheet_tracker)
+openai
+requests
+python-dateutil

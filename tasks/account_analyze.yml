@@ -1,0 +1,174 @@
+# References:
+#   - playbooks/pb_analyze_support_cases.yml:91
+---
+- name: Set variables for current account | {{ account.name }}
+  ansible.builtin.set_fact:
+    support_case_account_name: "{{ account.name }}"
+    support_case_account_ids: "{{ account.ids }}"
+    analysis_file_dest: >-
+      {{
+        account.analysis_file_dest
+        | default('reports/' ~ account.name ~ '_support_case_summary_' ~ now(fmt='%Y-%m-%d'))
+      }}
+    activity_date: "{{ account.activity_date | default(activity_date) }}"
+    gsheet_lookup_value: "{{ account.gsheet_lookup_value | default(account.ids[0] | string) }}"
+  tags: [always]
+
+- name: Fetch support cases via GraphQL | {{ account.name }}
+  business.support.graphql_cases:
+    access_token: "{{ redhat_access_token }}"
+    graphql_url: "{{ redhat_graphql_url }}"
+    client_name: "{{ redhat_graphql_client_name }}"
+    client_version: "{{ redhat_graphql_client_version }}"
+    account_numbers: "{{ support_case_account_ids }}"
+    last_modified_since: "{{ activity_date }}T00:00:00Z"
+    page_size: "{{ redhat_graphql_page_size }}"
+    timeout: "{{ redhat_api_timeout }}"
+  register: r_support_cases
+  tags: [fetch]
+
+- name: Set all_cases from GraphQL response | {{ account.name }}
+  ansible.builtin.set_fact:
+    all_cases: "{{ r_support_cases.cases | default([], true) }}"
+  tags: [fetch]
+
+- name: Note when no cases match filters | {{ account.name }}
+  when: all_cases | length == 0
+  ansible.builtin.debug:
+    msg: >-
+      No support cases with activity since {{ activity_date }} for {{ support_case_account_name }}.
+      Reports will still be generated with an empty case set.
+  tags: [filter]
+
+- name: Generate base report from template | {{ account.name }}
+  register: r_base_report_md
+  ansible.builtin.template:
+    src: ../templates/support_case_analysis.md.j2
+    dest: "{{ analysis_file_dest }}.md.tmp"
+    mode: '0644'
+  tags: [pdf, never]
+
+- name: Generate base report from template | {{ account.name }}
+  register: r_base_report_json
+  ansible.builtin.template:
+    src: ../templates/support_case_analysis.json.j2
+    dest: "{{ analysis_file_dest }}.json.tmp"
+    mode: '0644'
+  tags: [json]
+
+- name: Prepare case data for LLM AI | {{ account.name }}
+  ansible.builtin.set_fact:
+    llm_case_data:
+      total_cases: "{{ all_cases | length }}"
+      account_name: "{{ support_case_account_name }}"
+      accounts: "{{ support_case_account_ids }}"
+      cases: "{{ all_cases }}"
+  tags: [ai]
+
+- name: Generate AI summary with LLM | {{ account.name }}
+  vars:
+    _format_instructions: >-
+      {{ ('pdf' in ansible_skip_tags) | ternary(
+        'Respond in vanilla html. No markdown. No newlines and dashes, use html tags for formatting.',
+        omit) }}
+  business.support.llm_summarize:
+    api_key: "{{ llm_api_key }}"
+    api_base_url: "{{ llm_api_base_url }}"
+    case_data: "{{ llm_case_data }}"
+    model: "{{ llm_model }}"
+    temperature: "{{ llm_temperature }}"
+    max_tokens: "{{ llm_max_tokens }}"
+    format_instructions: "{{ _format_instructions }}"
+    timeout: "{{ llm_timeout }}"
+  register: ai_analysis
+  when: all_cases | length > 0
+  tags: [ai]
+
+- name: Set AI summary variable | {{ account.name }}
+  ansible.builtin.set_fact:
+    ai_summary: >-
+      {{
+        ai_analysis.summary
+        if ai_analysis.summary is defined
+        else (
+          '*No cases found with activity since ' ~ activity_date ~ ' — AI analysis was not performed.*'
+          if all_cases | length == 0
+          else '*No AI summary available — AI analysis failed.*'
+        )
+      }}
+  tags: [ai]
+
+- name: Generate final report with AI insights | {{ account.name }}
+  ansible.builtin.template:
+    src: ../templates/support_case_analysis.md.j2
+    dest: "{{ analysis_file_dest }}.md"
+    mode: '0644'
+  tags: [ai, pdf, never]
+
+- name: Clean up temporary file | md | {{ account.name }}
+  when: r_base_report_md is success
+  ansible.builtin.file:
+    path: "{{ r_base_report_md.dest }}"
+    state: absent
+  tags: [ai, pdf, never]
+
+- name: Update Google Sheet | {{ account.name }}
+  business.support.gsheet_update:
+    gsheet_id: "{{ gsheet_id | default(omit) }}"
+    credentials_path: "{{ google_credentials_path | default(omit) }}"
+    credentials: "{{ google_credentials | default(omit) }}"
+    sheet: "{{ gsheet_sheet }}"
+    lookup_column: "{{ gsheet_lookup_column }}"
+    lookup_value: "{{ gsheet_lookup_value }}"
+    update_column: "{{ gsheet_update_column }}"
+    update_value: "{{ lookup('template', '../templates/support_case_analysis.json.j2') }}"
+    truncate_priority_products: "{{ gsheet_truncate_priority_products }}"
+  register: r_gsheet_update
+  tags: [ai, json]
+
+- name: Warn when report data was truncated for Google Sheets | {{ account.name }}
+  when: r_gsheet_update.truncated | default(false)
+  ansible.builtin.debug:
+    msg: >-
+      Report for {{ support_case_account_name }} was shortened from
+      {{ r_gsheet_update.original_chars }} to {{ r_gsheet_update.final_chars }}
+      characters to fit the Google Sheets cell limit. Case descriptions and
+      summaries for non-priority products (see gsheet_truncate_priority_products)
+      were shortened first; the JSON schema is unchanged, and the
+      markdown/PDF report (--tags pdf) still contains the full data.
+  tags: [ai, json]
+
+- name: Clean up temporary file | json | {{ account.name }}
+  when: r_base_report_json is success
+  ansible.builtin.file:
+    path: "{{ r_base_report_json.dest }}"
+    state: absent
+  tags: [ai, json]
+
+- name: Display summary | {{ account.name }}
+  ansible.builtin.debug:
+    msg:
+      - "============================================"
+      - "Support Case Analysis Complete!"
+      - "============================================"
+      - "Account: {{ support_case_account_name }}"
+      - "Total Cases Analyzed: {{ all_cases | length }}"
+      - "Customer Accounts: {{ support_case_account_ids | length }}"
+      - "Report Generated: {{ analysis_file_dest }}"
+      - "AI Analysis: {{ 'Completed' if ai_analysis.summary is defined else ('Skipped (no cases)' if all_cases | length == 0 else 'Skipped') }}"
+      - "============================================"
+  tags: [ai, pdf, never]
+
+- name: Generate PDF report | {{ account.name }}
+  block:
+    - name: Convert markdown to HTML
+      ansible.builtin.command:
+        cmd: "pandoc --standalone -c ~/.pandoc/github-md.css -f gfm {{ analysis_file_dest }}.md -o {{ analysis_file_dest }}.html"
+      changed_when: false
+      tags: [ai, pdf, never]
+
+    - name: Convert HTML to PDF
+      ansible.builtin.command:
+        cmd: "weasyprint -q {{ analysis_file_dest }}.html {{ analysis_file_dest }}.pdf"
+      changed_when: false
+      tags: [ai, pdf, never]

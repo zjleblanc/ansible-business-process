@@ -14,3 +14,32 @@ controller_templates:
       - OpenAI Config
     labels:
       - Business
+
+  - name: BPA // Support Case Analyzer
+    description: >-
+      Fetch Red Hat support cases via GraphQL, summarize with AI, and write
+      the report into the Accounts worksheet tab.
+    job_type: run
+    organization: Autodotes
+    project: Business Process
+    playbook: playbooks/pb_analyze_support_cases.yml
+    inventory: Autodotes Lab
+    credentials:
+      - Support Analyzer - Accounts
+    labels:
+      - Business
+
+  - name: BPA // Support Case Tracker
+    description: >-
+      Track active Red Hat support cases in a dedicated worksheet tab, diff
+      against the previous run, and e-mail a change summary.
+    job_type: run
+    organization: Autodotes
+    project: Business Process
+    playbook: playbooks/pb_track_support_cases.yml
+    inventory: Autodotes Lab
+    credentials:
+      - Support Analyzer - Tracker
+      - SMTP Notifier
+    labels:
+      - Business
