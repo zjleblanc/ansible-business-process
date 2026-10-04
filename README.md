@@ -1,17 +1,27 @@
 # Ansible Business Process
 
-Ansible automation for recurring sales and customer-support workflows: syncing Salesforce
-account activity into a Google Sheets dashboard with AI-written summaries, and fetching,
-AI-summarizing, and change-tracking Red Hat support cases with e-mail notifications. Each
-workflow is a thin, AAP-ready playbook backed by purpose-built collections, with the platform
-configuration (Controller job templates, credentials, EDA) and the custom Execution Environment
-that runs them managed as code in this same repo.
+A working example of **business process automation with Ansible** — using playbooks, custom
+collections, and Ansible Automation Platform to turn manual, recurring operational work into
+idempotent, auditable automation that runs unattended and on a schedule.
 
-This repo follows the conventions in [AGENTS.md](AGENTS.md) (the authoritative development guide
-for both humans and AI coding agents working here) and the
+This repo follows the conventions in [AGENTS.md](AGENTS.md) and the
 [Red Hat CoP Ansible good practices](https://redhat-cop.github.io/automation-good-practices/).
 
-## What's here
+## Table of contents
+
+- [Workflows](#workflows)
+- [Repository layout](#repository-layout)
+  - [Collections](#collections)
+  - [Automation content](#automation-content)
+  - [Platform as code](#platform-as-code)
+  - [Event-Driven Ansible](#event-driven-ansible)
+  - [Developer tooling](#developer-tooling)
+  - [Documentation](#documentation)
+- [Getting started](#getting-started)
+- [Development](#development)
+- [Contributing](#contributing)
+
+## Workflows
 
 | Workflow | Playbook(s) | Docs |
 |---|---|---|
@@ -20,35 +30,50 @@ for both humans and AI coding agents working here) and the
 | Red Hat support case tracking + e-mail alerts | [`playbooks/pb_track_support_cases.yml`](playbooks/pb_track_support_cases.yml) | [Examples](docs/support-tracker/EXAMPLES.md), [Data Flow](docs/support-tracker/DATA_FLOW.md) |
 | AAP configuration as code | [`playbooks/pb_deploy_aap_config.yml`](playbooks/pb_deploy_aap_config.yml) | [Usage Guide (AAP setup end-to-end)](docs/common/USAGE.md) |
 
-Supporting pieces:
+## Repository layout
 
-- **`collections/ansible_collections/business/`** — two local collections that back the
-  workflows above:
-  - [`business.google`](collections/ansible_collections/business/google/README.md) — Gmail
-    search, Google Sheets read/update, and Salesforce-activity-email parsing filters.
-  - [`business.support`](collections/ansible_collections/business/support/README.md) — Red Hat
-    GraphQL case fetch, OpenAI-compatible LLM summarization, and Sheets-backed case tracking.
-- **`tasks/`** — per-account task files included by the playbooks (`account_update.yml`,
-  `account_analyze.yml`, `account_track.yml`).
-- **`templates/`** — Jinja templates for the AI analysis report (Markdown/JSON) and the
-  tracker's change-notification e-mail.
-- **`aap_config/`** — Ansible Automation Platform Controller and EDA objects (projects,
-  credential types, credentials, job templates, schedules) defined as code via
-  `infra.aap_configuration`, deployed by `pb_deploy_aap_config.yml`. See the
-  [aap-config-as-code skill](.cursor/skills/aap-config-as-code/README.md) for the patterns this
-  repo follows.
-- **`execution-environment/`** — the custom Execution Environment definition (and
-  [README](execution-environment/README.md)) that bundles the Python/Galaxy dependencies the
-  playbooks and collections need; built automatically by
-  [`.github/workflows/build-execution-environment.yml`](.github/workflows/build-execution-environment.yml).
-- **`rulebooks/`** — example `ansible-rulebook` sources for Event-Driven Ansible (webhook and
-  range demos).
-- **`scripts/`** — one-time developer tooling: `google_oauth_setup.py` (OAuth2 refresh-token
-  helper) and `generate_pdf.js` (optional Puppeteer PDF export for the analyzer).
-- **`docs/common/`** — cross-workflow guides:
-  [GSuite service-account quick start](docs/common/GSUITE_QUICKSTART.md) and the
-  [AAP/Controller end-to-end usage guide](docs/common/USAGE.md).
-- **`CHANGELOG.md`** — history of notable changes to playbooks, collections, and configuration.
+### Collections
+
+Local collections under [`collections/ansible_collections/business/`](collections/ansible_collections/business/)
+back the workflows above:
+
+| Collection | Purpose |
+|---|---|
+| [`business.google`](collections/ansible_collections/business/google/README.md) | Gmail search, Google Sheets read/update, Salesforce-activity-email parsing filters |
+| [`business.support`](collections/ansible_collections/business/support/README.md) | Red Hat GraphQL case fetch, OpenAI-compatible LLM summarization, Sheets-backed case tracking |
+
+### Automation content
+
+| Path | Contents |
+|---|---|
+| [`tasks/`](tasks/) | Per-account task files included by the playbooks (`account_update.yml`, `account_analyze.yml`, `account_track.yml`) |
+| [`templates/`](templates/) | Jinja templates for the AI analysis report (Markdown/JSON) and the tracker's change-notification e-mail |
+
+### Platform as code
+
+| Path | Contents |
+|---|---|
+| [`aap_config/`](aap_config/) | Controller and EDA objects (projects, credential types, credentials, job templates, schedules) defined as code via `infra.aap_configuration`, deployed by `pb_deploy_aap_config.yml`. See the [aap-config-as-code skill](.cursor/skills/aap-config-as-code/README.md) for the patterns this repo follows |
+| [`execution-environment/`](execution-environment/README.md) | Custom Execution Environment definition bundling the Python/Galaxy dependencies the playbooks and collections need; built automatically by [`build-execution-environment.yml`](.github/workflows/build-execution-environment.yml) |
+
+### Event-Driven Ansible
+
+| Path | Contents |
+|---|---|
+| [`rulebooks/`](rulebooks/) | Example `ansible-rulebook` sources (webhook and range demos) |
+
+### Developer tooling
+
+| Path | Contents |
+|---|---|
+| [`scripts/`](scripts/) | One-time developer tooling: `google_oauth_setup.py` (OAuth2 refresh-token helper) and `generate_pdf.js` (optional Puppeteer PDF export for the analyzer) |
+
+### Documentation
+
+| Path | Contents |
+|---|---|
+| [`docs/common/`](docs/common/) | Cross-workflow guides: [GSuite service-account quick start](docs/common/GSUITE_QUICKSTART.md) and the [AAP/Controller end-to-end usage guide](docs/common/USAGE.md) |
+| [`CHANGELOG.md`](CHANGELOG.md) | History of notable changes to playbooks, collections, and configuration |
 
 ## Getting started
 
