@@ -38,7 +38,7 @@
         - and:
             - Status:
                 eq: "Closed"
-            - LastModifiedDate:
+            - ClosedDate:
                 gt:
                   value: "{{ _closed_case_cutoff_iso }}"
     page_size: "{{ redhat_graphql_page_size }}"
