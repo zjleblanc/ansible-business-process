@@ -14,6 +14,7 @@
           - redhat_offline_token is defined # offline token from https://access.redhat.com/management/api
           - redhat_offline_token | length > 0
           - gsheet_id is defined # Google Sheet ID
+          - gsheet_id | length > 0
           - email_smtp_server is defined # SMTP host
           - email_smtp_server | length > 0
           - email_smtp_from_address is defined

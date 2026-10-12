@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-12 — Default support tracker runtime inputs from environment variables
+
+### Changed
+- Updated `playbooks/vars/track_support_cases.yml` to default tracker runtime
+  inputs from environment variables: `REDHAT_OFFLINE_TOKEN`, `GSHEET_SHEET`,
+  `GOOGLE_SHEET_ID`, and `GOOGLE_SA_CRED_PATH` (with `tower.filename` fallback
+  for credentials path), while keeping `gsheet_id` aligned to the env-backed
+  sheet id.
+- Updated `playbooks/pb_track_support_cases.yml` validation to also require a
+  non-empty `gsheet_id` before execution.
+
 ## 2026-10-12 — Filter stale closed support cases server-side for analyzer runs
 
 ### Changed

@@ -6,6 +6,7 @@ redhat_graphql_client_name: "ansible-business-process"
 redhat_graphql_client_version: "1.0"
 redhat_graphql_page_size: 200
 redhat_api_timeout: 30
+redhat_offline_token: "{{ lookup('ansible.builtin.env', 'REDHAT_OFFLINE_TOKEN') }}"
 
 # Date window used to filter tracked support activity.
 activity_date: >-
@@ -15,7 +16,10 @@ activity_date: >-
   }}
 
 # Google Sheets tracker destination and status filtering.
-gsheet_sheet: "Support Case Tracker"
+gsheet_sheet: "{{ lookup('ansible.builtin.env', 'GSHEET_SHEET') | default('Support Case Tracker', true) }}"
+google_sheet_id: "{{ lookup('ansible.builtin.env', 'GOOGLE_SHEET_ID') }}"
+gsheet_id: "{{ google_sheet_id }}"
+google_credentials_path: "{{ lookup('ansible.builtin.env', 'GOOGLE_SA_CRED_PATH') | default(tower.filename | default('', true), true) }}"
 gsheet_table_name: "{{ gsheet_sheet }}"
 tracker_status_filter: { ne: "Closed" }
 
