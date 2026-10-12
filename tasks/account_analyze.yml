@@ -15,6 +15,15 @@
   tags: [always]
 
 - name: Fetch support cases via GraphQL | {{ account.name }}
+  vars:
+    _closed_case_cutoff_iso: >-
+      {{
+        '%Y-%m-%dT%H:%M:%S.000Z'
+        | strftime(
+            (now(fmt='%s', utc=true) | int) - ((analyze_closed_case_days | int) * 86400),
+            utc=true
+          )
+      }}
   business.support.graphql_cases:
     access_token: "{{ redhat_access_token }}"
     graphql_url: "{{ redhat_graphql_url }}"
@@ -22,6 +31,16 @@
     client_version: "{{ redhat_graphql_client_version }}"
     account_numbers: "{{ support_case_account_ids }}"
     last_modified_since: "{{ activity_date }}T00:00:00Z"
+    extra_where:
+      or:
+        - Status:
+            ne: "Closed"
+        - and:
+            - Status:
+                eq: "Closed"
+            - LastModifiedDate:
+                gt:
+                  value: "{{ _closed_case_cutoff_iso }}"
     page_size: "{{ redhat_graphql_page_size }}"
     timeout: "{{ redhat_api_timeout }}"
   register: r_support_cases
@@ -37,6 +56,7 @@
   ansible.builtin.debug:
     msg: >-
       No support cases with activity since {{ activity_date }} for {{ support_case_account_name }}.
+      Closed cases are included only when updated in the last {{ analyze_closed_case_days }} days.
       Reports will still be generated with an empty case set.
   tags: [filter]
 

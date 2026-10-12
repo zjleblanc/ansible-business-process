@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-12 — Filter stale closed support cases server-side for analyzer runs
+
+### Changed
+- Added `analyze_closed_case_days: 90` to
+  `playbooks/vars/analyze_support_cases.yml` to make closed-case retention
+  explicit and configurable for analyzer payload control.
+- Updated `tasks/account_analyze.yml` to apply a server-side GraphQL
+  `extra_where` filter when fetching cases, keeping all non-closed cases plus
+  only closed cases updated within the configured retention window.
+- Updated the analyzer "no cases" debug message to clarify that closed cases are
+  included only when updated within the retention window.
+
 ## 2026-10-12 — Reduce Google Sheets support report payload size
 
 ### Changed

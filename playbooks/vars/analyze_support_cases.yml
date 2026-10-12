@@ -28,6 +28,9 @@ gsheet_truncate_priority_products:
 # Red Hat API authentication token.
 redhat_offline_token: "{{ lookup('ansible.builtin.env', 'REDHAT_OFFLINE_TOKEN') }}"
 
+# Case filtering for report size control.
+analyze_closed_case_days: 90
+
 # Derived dates, output names, and logging defaults.
 activity_date: >-
   {{
