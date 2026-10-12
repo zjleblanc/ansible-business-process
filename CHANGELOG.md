@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-12 — Reduce Google Sheets support report payload size
+
+### Changed
+- Slimmed `templates/support_case_analysis.json.j2` to remove duplicated per-case
+  arrays from `accounts[].cases_by_severity[]` and `products[]`, keeping count
+  summaries while preserving the detailed top-level `cases[]` list.
+- Updated `case_detail` in `templates/support_case_analysis.json.j2` to include
+  `description` only for priority products matched by keyword substring
+  (`gsheet_truncate_priority_products`), instead of including descriptions for
+  every case.
+- Updated support analyzer defaults in `playbooks/vars/analyze_support_cases.yml`
+  to use `gsheet_truncate_priority_products: ["Ansible"]` so all Ansible product
+  variants are treated as priority.
+- Updated `business.support.gsheet_update` priority matching in
+  `collections/ansible_collections/business/support/plugins/modules/gsheet_update.py`
+  from exact product-name matching to case-insensitive substring keyword matching,
+  and aligned module docs/defaults to `["Ansible"]`.
+
 ## 2026-10-12 — Externalize support-case playbook defaults into vars files
 
 ### Added

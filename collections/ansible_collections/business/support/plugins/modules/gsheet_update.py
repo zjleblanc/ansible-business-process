@@ -77,12 +77,15 @@ options:
         default: true
     truncate_priority_products:
         description:
-            - Product names whose case text (descriptions, summaries) is shortened
-              last, and by the smallest amount, when O(truncate) is needed. Text for
-              other products is shortened first.
+            - Product-name keywords whose case text (descriptions, summaries) is
+              shortened last, and by the smallest amount, when O(truncate) is needed.
+            - A case is treated as priority when any keyword is a substring of its
+              product name (for example C(Ansible) matches both
+              C(Red Hat Ansible Automation Platform) and C(Ansible Automation Hub)).
+            - Text for non-priority products is shortened first.
         type: list
         elements: str
-        default: ["Red Hat Ansible Automation Platform"]
+        default: ["Ansible"]
     max_cell_chars:
         description:
             - Character threshold used to trigger O(truncate). Kept slightly below
@@ -284,8 +287,17 @@ _TRIM_LENGTH_STAGES = (1500, 500, 150, 40, 0)
 
 
 def _is_priority_case(case, priority_products):
-    """Return True when a case's product is in the preserved priority set."""
-    return isinstance(case, dict) and case.get("product") in priority_products
+    """Return True when a case's product contains any priority keyword."""
+    if not isinstance(case, dict):
+        return False
+    product = case.get("product")
+    if not isinstance(product, str):
+        return False
+    product_norm = product.lower()
+    for keyword in priority_products:
+        if isinstance(keyword, str) and keyword.lower() in product_norm:
+            return True
+    return False
 
 
 def _dumps(data):
@@ -330,7 +342,7 @@ def _collect_trim_tiers(data, priority_products):
     for product in data.get("products") or []:
         if not isinstance(product, dict):
             continue
-        tier = tier1 if product.get("product") in priority_products else tier0
+        tier = tier1 if _is_priority_case(product, priority_products) else tier0
         for row in product.get("cases") or []:
             if isinstance(row, dict) and isinstance(row.get("summary"), str):
                 tier.append((row, "summary"))
@@ -418,7 +430,7 @@ def main():
             truncate_priority_products=dict(
                 type="list",
                 elements="str",
-                default=["Red Hat Ansible Automation Platform"],
+                default=["Ansible"],
             ),
             max_cell_chars=dict(type="int", default=GSHEET_MAX_CELL_CHARS),
         ),

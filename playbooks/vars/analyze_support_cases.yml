@@ -23,7 +23,7 @@ tower:
 gsheet_lookup_column: "{{ lookup('ansible.builtin.env', 'GSHEET_LOOKUP_COLUMN') | default('K', true) }}"
 gsheet_update_column: "{{ lookup('ansible.builtin.env', 'GSHEET_UPDATE_COLUMN') | default('O', true) }}"
 gsheet_truncate_priority_products:
-  - "Red Hat Ansible Automation Platform"
+  - "Ansible"
 
 # Red Hat API authentication token.
 redhat_offline_token: "{{ lookup('ansible.builtin.env', 'REDHAT_OFFLINE_TOKEN') }}"
