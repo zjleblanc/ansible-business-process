@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-12 — Externalize support-case playbook defaults into vars files
+
+### Added
+- New playbook vars files under `playbooks/vars/`: `analyze_support_cases.yml` and
+  `track_support_cases.yml`, each organized by concern and annotated with brief
+  section-purpose headers.
+- Scoped Cursor rule at `.cursor/rules/playbooks-vars-convention.mdc` to enforce
+  the `playbooks/vars/` + `vars_files` pattern and section header usage for grouped vars.
+
+### Changed
+- `playbooks/pb_analyze_support_cases.yml` now loads defaults via
+  `vars_files: [vars/analyze_support_cases.yml]` instead of a large inline `vars` block.
+- `playbooks/pb_track_support_cases.yml` now loads defaults via
+  `vars_files: [vars/track_support_cases.yml]` instead of a large inline `vars` block.
+- Support analyzer defaults now map required runtime inputs from environment variables
+  in `playbooks/vars/analyze_support_cases.yml` (LLM model/key/base URL, Google Sheet
+  identifiers/columns/credential path, and Red Hat offline token).
+
 ## 2026-10-04 — Merge ansible-support-analyzer (analyzer + tracker workflows)
 
 ### Added

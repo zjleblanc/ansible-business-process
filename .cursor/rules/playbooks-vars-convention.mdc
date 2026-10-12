@@ -1,0 +1,16 @@
+---
+description: Keep playbook vars in playbooks/vars files and reference them with vars_files
+globs: playbooks/**/*.yml
+alwaysApply: false
+---
+
+# Playbook Vars Convention
+
+- For playbooks, prefer `vars_files` over large inline `vars` blocks.
+- Place playbook-specific vars in `playbooks/vars/`.
+- Name vars files by playbook purpose, for example:
+  - `playbooks/pb_analyze_support_cases.yml` -> `playbooks/vars/analyze_support_cases.yml`
+  - `playbooks/pb_track_support_cases.yml` -> `playbooks/vars/track_support_cases.yml`
+- In playbooks, reference vars files with paths relative to the playbook file, for example `vars/<name>.yml`.
+- Organize vars by concern with spacing between groups (API/client, sheet/config, notifications, runtime).
+- Add one brief comment header above each variable group describing that group's purpose.

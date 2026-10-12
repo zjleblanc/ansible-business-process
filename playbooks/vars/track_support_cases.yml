@@ -1,0 +1,29 @@
+---
+# Red Hat API and GraphQL client settings.
+redhat_sso_url: "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token"
+redhat_graphql_url: "https://graphql.redhat.com"
+redhat_graphql_client_name: "ansible-business-process"
+redhat_graphql_client_version: "1.0"
+redhat_graphql_page_size: 200
+redhat_api_timeout: 30
+
+# Date window used to filter tracked support activity.
+activity_date: >-
+  {{
+    (now().replace(month=((now().month - 7) % 12 + 1), year=now().year - (1 if now().month <= 6 else 0)))
+    .strftime('%Y-%m-%d')
+  }}
+
+# Google Sheets tracker destination and status filtering.
+gsheet_sheet: "Support Case Tracker"
+gsheet_table_name: "{{ gsheet_sheet }}"
+tracker_status_filter: { ne: "Closed" }
+
+# Notification subject and send conditions.
+tracker_email_subject: "Support Case Tracker - Changes Detected"
+tracker_notify_on_no_changes: false
+
+# Runtime safety and in-memory tracking state.
+secure_logging: true
+tracking_results: []
+tracker_pending_rows: []
