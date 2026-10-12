@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-12 — Add Sheets-friendly date format defaults for support tracker vars
+
+### Changed
+- Added `gsheet_date_format` and `gsheet_datetime_format` defaults to
+  `playbooks/vars/track_support_cases.yml` so tracker date/time formatting is
+  explicit and spreadsheet-friendly.
+- Updated `activity_date` in `playbooks/vars/track_support_cases.yml` to use
+  `strftime(gsheet_date_format)` instead of an inline hard-coded format.
+
 ## 2026-10-12 — Default support tracker runtime inputs from environment variables
 
 ### Changed
