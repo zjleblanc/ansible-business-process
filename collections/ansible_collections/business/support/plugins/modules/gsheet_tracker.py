@@ -186,22 +186,50 @@ accounts:
             description: Number of rows previously recorded for this account.
             type: int
 new_cases:
-    description: Cases present now that were not present on the previous run. Returned by C(state=diff).
+    description: >-
+        Cases present now that were not present on the previous run. Each entry is a case dict
+        with the standard case fields plus a C(case_url) key containing the full Red Hat support
+        portal URL for the case. Returned by C(state=diff).
     type: list
     elements: dict
     returned: state=diff
+    contains:
+        case_id:
+            description: Plain case number (e.g. C(04270381)).
+            type: str
+        case_url:
+            description: Full URL to the case on the Red Hat support portal.
+            type: str
 closed_cases:
-    description: Cases present on the previous run that are no longer active. Returned by C(state=diff).
+    description: >-
+        Cases present on the previous run that are no longer active. Each entry is a case dict
+        with the standard case fields plus a C(case_url) key containing the full Red Hat support
+        portal URL for the case. Returned by C(state=diff).
     type: list
     elements: dict
     returned: state=diff
+    contains:
+        case_id:
+            description: Plain case number (e.g. C(04270381)).
+            type: str
+        case_url:
+            description: Full URL to the case on the Red Hat support portal.
+            type: str
 updated_cases:
     description: >-
         Cases present on both runs whose severity, status, or owner changed. Each entry includes
-        the case identity plus a C(changes) dict of C(field) -> C({old, new}). Returned by C(state=diff).
+        the case identity fields (C(case_id), C(case_url), C(summary), C(product)) plus a
+        C(changes) dict of C(field) -> C({old, new}). Returned by C(state=diff).
     type: list
     elements: dict
     returned: state=diff
+    contains:
+        case_id:
+            description: Plain case number (e.g. C(04270381)).
+            type: str
+        case_url:
+            description: Full URL to the case on the Red Hat support portal.
+            type: str
 total_current:
     description: Number of cases passed in via O(cases). Returned by C(state=diff).
     type: int
@@ -237,6 +265,7 @@ sheet:
 """
 
 import os
+import re
 
 from datetime import datetime, timezone
 
@@ -356,8 +385,15 @@ def pad_row(row, width):
 
 
 def row_to_dict(row):
-    """Map a padded raw row to a dict keyed by HEADER_KEYS."""
-    return dict(zip(HEADER_KEYS, row))
+    """Map a padded raw row to a dict keyed by HEADER_KEYS.
+
+    The ``case_id`` field is unwrapped from its ``=HYPERLINK(url, id)`` formula
+    (if present) so callers always receive a plain case number. The underlying
+    raw row list used for round-trip writes is never modified here.
+    """
+    d = dict(zip(HEADER_KEYS, row))
+    d["case_id"] = parse_case_id_cell(d.get("case_id", ""))
+    return d
 
 
 CASE_URL_BASE = "https://access.redhat.com/support/cases/#/case/"
@@ -368,6 +404,26 @@ def case_id_cell(case_id):
     if not case_id:
         return ""
     return f'=HYPERLINK("{CASE_URL_BASE}{case_id}","{case_id}")'
+
+
+CASE_ID_FORMULA_RE = re.compile(
+    r'^=HYPERLINK\(\s*"[^"]*"\s*,\s*"([^"]*)"\s*\)$', re.IGNORECASE
+)
+
+
+def parse_case_id_cell(value):
+    """Return the bare case ID from a plain string or a =HYPERLINK(url, id) formula.
+
+    The sheet stores case IDs as ``=HYPERLINK("url","id")`` formulas so Google
+    Sheets renders a clickable link. When rows are read back with
+    ``valueRenderOption=FORMULA`` (see ``get_sheet_values``), the raw formula
+    string is returned verbatim. This function unwraps it back to the plain
+    case number so that diff matching and email rendering always work with a
+    clean, undecorated ID.
+    """
+    value = (value or "").strip()
+    match = CASE_ID_FORMULA_RE.match(value)
+    return match.group(1) if match else value
 
 
 def case_to_row(account_name, case, last_seen):
@@ -400,13 +456,23 @@ def latest_last_seen(previous_account_rows):
     return max(timestamps) if timestamps else ""
 
 
+def _with_case_url(case_dict):
+    """Return a shallow copy of case_dict with a ``case_url`` field added."""
+    cid = case_dict.get("case_id", "")
+    return dict(case_dict, case_url=CASE_URL_BASE + cid if cid else "")
+
+
 def diff_cases(previous_by_id, current_by_id):
     """Compute new/closed/updated cases between two case_id-keyed dicts."""
     previous_ids = set(previous_by_id)
     current_ids = set(current_by_id)
 
-    new_cases = [current_by_id[cid] for cid in sorted(current_ids - previous_ids)]
-    closed_cases = [previous_by_id[cid] for cid in sorted(previous_ids - current_ids)]
+    new_cases = [
+        _with_case_url(current_by_id[cid]) for cid in sorted(current_ids - previous_ids)
+    ]
+    closed_cases = [
+        _with_case_url(previous_by_id[cid]) for cid in sorted(previous_ids - current_ids)
+    ]
 
     updated_cases = []
     for cid in sorted(previous_ids & current_ids):
@@ -422,6 +488,7 @@ def diff_cases(previous_by_id, current_by_id):
             updated_cases.append(
                 {
                     "case_id": cid,
+                    "case_url": CASE_URL_BASE + cid,
                     "summary": current_case.get("summary", ""),
                     "product": current_case.get("product", ""),
                     "changes": changes,

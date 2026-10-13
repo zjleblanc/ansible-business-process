@@ -60,7 +60,7 @@
       </tr>
       {% for case in result.new_cases %}
       <tr>
-        <td style="padding:6px; border-bottom:1px solid #eee;">{{ case.case_id }}</td>
+        <td style="padding:6px; border-bottom:1px solid #eee;"><a href="{{ case.case_url }}" style="color:#0b5fff; text-decoration:none;">{{ case.case_id }}</a></td>
         <td style="padding:6px; border-bottom:1px solid #eee;">{{ case.summary | default('', true) | truncate(80) }}</td>
         <td style="padding:6px; border-bottom:1px solid #eee;">{{ case.product }}</td>
         <td style="padding:6px; border-bottom:1px solid #eee;">{{ case.severity }}</td>
@@ -82,7 +82,7 @@
       </tr>
       {% for case in result.closed_cases %}
       <tr>
-        <td style="padding:6px; border-bottom:1px solid #eee;">{{ case.case_id }}</td>
+        <td style="padding:6px; border-bottom:1px solid #eee;"><a href="{{ case.case_url }}" style="color:#0b5fff; text-decoration:none;">{{ case.case_id }}</a></td>
         <td style="padding:6px; border-bottom:1px solid #eee;">{{ case.summary | default('', true) | truncate(80) }}</td>
         <td style="padding:6px; border-bottom:1px solid #eee;">{{ case.product }}</td>
         <td style="padding:6px; border-bottom:1px solid #eee;">{{ case.severity }}</td>
@@ -102,7 +102,7 @@
       </tr>
       {% for case in result.updated_cases %}
       <tr>
-        <td style="padding:6px; border-bottom:1px solid #eee;">{{ case.case_id }}</td>
+        <td style="padding:6px; border-bottom:1px solid #eee;"><a href="{{ case.case_url }}" style="color:#0b5fff; text-decoration:none;">{{ case.case_id }}</a></td>
         <td style="padding:6px; border-bottom:1px solid #eee;">{{ case.summary | default('', true) | truncate(80) }}</td>
         <td style="padding:6px; border-bottom:1px solid #eee;">
           {% for field, change in case.changes.items() %}
